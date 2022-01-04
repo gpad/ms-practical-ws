@@ -1,0 +1,27 @@
+stages:
+  - test
+  - deploy
+
+image: node:lts-gallium
+cache:
+  paths:
+    - node_modules
+
+test:
+  stage: test
+  services:
+    - postgres:latest
+    - rabbitmq:3-management
+  variables:
+    POSTGRES_HOST: postgres
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    POSTGRES_DB: ms_template_test
+    AMQP_URI: amqp://guest:guest@rabbitmq:5672
+
+  script:
+    - npm install npm@latest
+    - npm install
+    - npm run check
+    - npm run test
+    - npm run build

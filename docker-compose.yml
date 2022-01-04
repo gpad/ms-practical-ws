@@ -1,0 +1,21 @@
+version: "3"
+services:
+  ms-db:
+    image: "postgres:14"
+    container_name: "ms-template-db"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ms_template_dev
+    volumes:
+      - /var/lib/postgresql/data
+
+  ms-rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ms-rabbitmq
+    hostname: "rabbitmq"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
