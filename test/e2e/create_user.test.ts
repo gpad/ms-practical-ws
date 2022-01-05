@@ -52,6 +52,4 @@ describe("create user via API", async () => {
       return msg.eventName === UserCreated.EventName && data.id === userId && data.email === payload.email
     })
   })
-
-  it("make user_confirmed when receive confirmed email")
 })

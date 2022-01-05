@@ -16,6 +16,7 @@ export type AppOptions = {
   logger: { silentLog: boolean; logLevel: string }
   dbOptions: DbOptions
   rabbitOptions: RabbitOptions
+  storageServiceUrl: string
 }
 
 export function getAppOptions(): AppOptions {
@@ -37,5 +38,6 @@ export function getAppOptions(): AppOptions {
       uri: process.env.AMQP_URI || "amqp://guest:guest@localhost:5672",
       tmpQueue: env === "test",
     },
+    storageServiceUrl: process.env.STORAGE_SERVICE_URL || "http://localhost:4001",
   }
 }

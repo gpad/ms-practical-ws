@@ -105,7 +105,7 @@ export class RabbitServiceBus implements EventBus {
         return this.handleMessage<T>(msg, this.handlers[eventName] as EventHandler<T>, builder)
       },
       {
-        queueName: this.createQueueNameFrom(eventName),
+        queueName: this.createQueueNameFrom(eventName, temporary),
         bindingKey: `event.*.${eventName}`,
         exchange: "events",
         temporary,
@@ -152,8 +152,8 @@ export class RabbitServiceBus implements EventBus {
     }
   }
 
-  private createQueueNameFrom(eventName: string): string {
-    return `${snakeCase(this.msName)}_${snakeCase(eventName)}`
+  private createQueueNameFrom(eventName: string, temporary: boolean): string {
+    return `${snakeCase(this.msName)}_${snakeCase(eventName)}${temporary ? "_tmp" : ""}`
   }
 
   emit<T extends DomainEvent>(event: T): Promise<void> {

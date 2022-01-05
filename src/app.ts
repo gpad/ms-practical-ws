@@ -19,6 +19,10 @@ import { UserRepository } from "./user/user_repository"
 import { createEventBuilderFor, RabbitServiceBus } from "./infra/rabbit_service_bus"
 import { EmailConfirmed } from "./user/user"
 import { inspect } from "util"
+import multer from "multer"
+import { errorHandler } from "./infra/error_handler"
+const storage = multer.memoryStorage()
+const upload = multer({ storage: storage })
 
 function configureMorgan(app: Application, logger: Logger) {
   morgan.token<IncomingMessage & { id: string }>("id", (req) => req.id)
@@ -104,7 +108,7 @@ async function createApp(options: AppOptions) {
   const eventBus = new RabbitServiceBus(rabbit, "ms-template", logger)
 
   const userRepository = new UserRepository(db, eventBus)
-  const userCommandHandler = new UserCommandHandler(userRepository)
+  const userCommandHandler = new UserCommandHandler(userRepository, options.storageServiceUrl)
   userCommandHandler.registerTo(commandBus)
 
   const confirmationPolicy = new ConfirmationPolicy(commandBus)
@@ -129,7 +133,10 @@ async function createApp(options: AppOptions) {
   app.get("/healthz", statusController.createHealthz(db, rabbit))
   app.post("/api/error", homeController.error)
   app.get("/api/error", homeController.error)
-  app.post("/api/users", usersController.urlForCreateUser(commandBus))
+  app.post("/api/users", usersController.createUser(commandBus))
+  app.post("/api/users/:id/photo", upload.any(), usersController.uploadPhoto(commandBus))
+
+  app.use(errorHandler(logger))
 
   eventBus.start([createEventBuilderFor("xxx", EmailConfirmed)], options.rabbitOptions.tmpQueue)
 

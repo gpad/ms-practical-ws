@@ -15,7 +15,7 @@ class Queryable {
 }
 
 export class Db {
-  constructor(readonly pool: Pool) {}
+  constructor(private readonly pool: Pool) {}
 
   async query<T>(q: Sql): Promise<T[]> {
     const res = await this.pool.query<T>(q)
