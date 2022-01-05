@@ -2,14 +2,14 @@ import { NextFunction, Request, Response } from "express"
 import { CommandId } from "../infra/ids"
 import { CommandBus } from "../infra/local_command_bus"
 import { DomainTrace } from "../infra/domain_trace"
-import { Command } from "../infra/command"
 import { User, UserData, UserId } from "../user/user"
-import { CreateUserCommand } from "../user/create_user_command"
+import { CreateUserCommand, UploadPhotoCommand } from "../user/create_user_command"
+import { isArray } from "lodash"
 
-export const urlForCreateUser = function (commandBus: CommandBus) {
+export const createUser = function (commandBus: CommandBus) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const cmd = creatUserCommandFrom(req)
+      const cmd = createUserCommandFrom(req)
       const ret = await commandBus.execute<User>(cmd)
       if (!ret.success) {
         res.status(400).json({ errors: ret.errors })
@@ -22,11 +22,35 @@ export const urlForCreateUser = function (commandBus: CommandBus) {
   }
 }
 
-function creatUserCommandFrom(req: Request): Command {
+export function uploadPhoto(commandBus: CommandBus) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const cmd = uploadPhotoCommandFrom(req)
+      const ret = await commandBus.execute(cmd)
+      if (!ret.success) {
+        res.status(400).json({ errors: ret.errors })
+        return
+      }
+      res.status(200).json({ status: "ok" })
+    } catch (e) {
+      next(e as Error)
+    }
+  }
+}
+
+function createUserCommandFrom(req: Request): CreateUserCommand {
   const commandId = CommandId.new()
   const domainTrace = DomainTrace.extractFromHeaders(req.headers, commandId)
   const { payload } = check<{ commandName: string; payload: UserData }>(req.body)
   return CreateUserCommand.create(commandId, UserId.new(), payload, domainTrace)
+}
+
+function uploadPhotoCommandFrom(req: Request): UploadPhotoCommand {
+  const commandId = CommandId.new()
+  const domainTrace = DomainTrace.extractFromHeaders(req.headers, commandId)
+  const x = isArray(req.files) ? req.files[0] : null
+  if (!x) throw new Error("Unable to decode file")
+  return UploadPhotoCommand.create(commandId, UserId.from(req.params.id), x.buffer, domainTrace)
 }
 
 function check<T>(body: unknown): T {

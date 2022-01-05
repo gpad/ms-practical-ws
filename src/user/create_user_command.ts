@@ -13,6 +13,18 @@ export class CreateUserCommand extends Command {
   }
 }
 
+export class UploadPhotoCommand extends Command {
+  static CommandName = "upload_photo"
+
+  static create(id: CommandId, userId: UserId, photo: Buffer, domainTrace: DomainTrace) {
+    return new UploadPhotoCommand(id, userId, photo, domainTrace)
+  }
+
+  constructor(id: CommandId, readonly userId: UserId, readonly photo: Buffer, domainTrace: DomainTrace) {
+    super(id, userId, UploadPhotoCommand.CommandName, domainTrace)
+  }
+}
+
 export class ConfirmEmailCommand extends Command {
   static CommandName = "confirm_email"
   static create(userId: UserId, email: string, domainTrace: DomainTrace) {
