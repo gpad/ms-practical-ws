@@ -1,5 +1,5 @@
 import { Logger } from "winston"
-import { ConfirmChannel, connect, Connection, ConsumeMessage, Message } from "amqplib"
+import { ConfirmChannel, connect, Connection, ConsumeMessage, Message, Replies, ServerProperties } from "amqplib"
 import { random } from "lodash"
 import { inspect } from "util"
 import { wait } from "./wait"
@@ -23,12 +23,19 @@ interface RabbitConsumerOptions {
   temporary: boolean
 }
 
+export interface RabbitGetInfo {
+  exchanges: string[]
+  queues: Replies.AssertQueue[]
+  serverProperties: ServerProperties
+}
+
 export class Rabbit {
   private connection: Connection | null = null
   private channel: ConfirmChannel | null = null
   private exchangeName = "events"
   private waiting = false
   private stopping = false
+  private consumers: string[] = []
   constructor(
     private readonly uri: string,
     readonly msName: string,
@@ -65,6 +72,7 @@ export class Rabbit {
     this.stopping = true
     await this.channel?.close()
     await this.connection?.close()
+    this.consumers = []
   }
 
   async startConsumer(consumer: RabbitConsumerCallBack, opts: RabbitConsumerOptions) {
@@ -83,6 +91,7 @@ export class Rabbit {
         this.logger.error(`Unable to handle message ${inspect(msg)} with consumer: ${inspect(opts)}`)
       }
     })
+    this.consumers.push(opts.queueName)
   }
 
   ack(msg: Message) {
@@ -95,16 +104,27 @@ export class Rabbit {
     this.channel.nack(msg, false, requeue)
   }
 
-  async getInfo() {
+  async getInfo(): Promise<RabbitGetInfo | { error: string }> {
+    if (!this.connection) {
+      throw new Error("Unable to getInfo because connection is null")
+    }
+    if (!this.channel) {
+      throw new Error("Unable to getInfo because channel is null")
+    }
     try {
-      await this.channel?.checkExchange(this.exchangeName)
+      await this.channel.checkExchange(this.exchangeName)
       const exchanges = [this.exchangeName]
-      const queues: string[] = [] //[await this.channel?.checkQueue(this.queueName)]
-      return { exchanges, queues, serverProperties: this.connection?.connection.serverProperties }
+      if (!this.channel) {
+        throw new Error("Unable to getInfo because channel is null")
+      }
+      const ch: ConfirmChannel = this.channel
+      const queues = await Promise.all(this.consumers.map((q) => ch.checkQueue(q)))
+      return { exchanges, queues, serverProperties: this.connection.connection.serverProperties }
     } catch (error) {
       return { error: inspect(error) }
     }
   }
+
   // TODO it's too specific!!!
   publish(message: RabbitMessage): Promise<void> {
     if (!this.channel) throw new Error("Unable to publish because connection is null")

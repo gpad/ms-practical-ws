@@ -13,10 +13,7 @@ export class ConfirmationPolicy {
 
   async confirmUser(e: EmailConfirmed): Promise<EventResult> {
     const cmd = ConfirmEmailCommand.create(UserId.from(e.payload.userId), e.payload.email, DomainTrace.createFrom(e))
-    const res = await this.commandBus.execute<User>(cmd)
-    if (res.success) {
-      return { ack: true, payload: res.payload }
-    }
-    return { ack: true, payload: res.errors }
+    await this.commandBus.execute<User>(cmd)
+    return { ack: true }
   }
 }

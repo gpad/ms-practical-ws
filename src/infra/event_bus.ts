@@ -4,10 +4,9 @@ import { RabbitMessage } from "./rabbit"
 
 export interface EventResult {
   ack: boolean
-  payload: unknown
 }
+
 export type EventHandler<T extends DomainEvent> = (e: T, logger: Logger) => Promise<EventResult>
-// export type EventHandler<T extends DomainEvent> = (e: T, logger: Logger) => Promise<void>
 
 export interface EventBus {
   register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void

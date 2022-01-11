@@ -26,12 +26,17 @@ interface ReceivedMessage {
 export interface PublicDomainEventBuilder<T extends PublicDomainEvent> {
   createFromMessage(msg: ReceivedMessage): T
   isAbleToManage(eventName: string): boolean
+  getEventName(): string
 }
 
 export class GenericPublicDomainEventBuilder<T, U extends PublicDomainEvent> implements PublicDomainEventBuilder<U> {
   constructor(private record: unknown, private MessageType: PublicDomainEventCtor<T, U>) {
     // TODO how to check type
     if (!this.record) throw Error("todo")
+  }
+
+  getEventName(): string {
+    return this.MessageType.EventName
   }
 
   createFromMessage(msg: ReceivedMessage): U {
@@ -55,51 +60,27 @@ export function createEventBuilderFor<T, U extends PublicDomainEvent>(
   return new GenericPublicDomainEventBuilder(record, messageClass)
 }
 
-type EventToBuilderResult<T extends PublicDomainEvent> = {
-  eventToBuilder: {
-    [k: string]: PublicDomainEventBuilder<T>
-  }
-  eventsUnpaired: string[]
-}
-
 export class RabbitServiceBus implements EventBus {
   private handlers: { [key: string]: EventHandler<never> } = {}
 
   constructor(private readonly rabbit: Rabbit, private msName: string, private logger: Logger) {}
 
-  start<T extends PublicDomainEvent>(builders: PublicDomainEventBuilder<T>[], temporary: boolean) {
-    const eventNames = Object.keys(this.handlers)
-    const { eventsUnpaired, eventToBuilder } = this.eventsToBuilders(builders, eventNames)
-    if (eventsUnpaired.length > 0) {
-      throw new Error(`Some builders are missing: ${eventsUnpaired}`)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async start(builders: PublicDomainEventBuilder<any>[], temporary: boolean): Promise<void> {
+    const eventNames = builders.map((b) => b.getEventName())
+    const handlerNames = Object.keys(this.handlers)
+    const everyBuildersHaveHandlers = eventNames.every((e) => handlerNames.find((h) => h === e))
+    if (!everyBuildersHaveHandlers) {
+      throw new Error(`Some builders doesn't have an handler, builders: ${eventNames}, handlers: ${handlerNames}`)
     }
-    eventNames.map((eventName) => {
-      return this.createConsumer(eventName, eventToBuilder[eventName], temporary)
-    })
-  }
-
-  private eventsToBuilders<T extends PublicDomainEvent>(
-    builders: PublicDomainEventBuilder<T>[],
-    eventNames: string[]
-  ): EventToBuilderResult<T> {
-    const getBuilderOf = (eventName: string) => builders.find((b) => b.isAbleToManage(eventName))
-    const startFrom: EventToBuilderResult<T> = { eventToBuilder: {}, eventsUnpaired: [] }
-    const ret = eventNames.reduce(({ eventToBuilder, eventsUnpaired }, eventName) => {
-      const builder = getBuilderOf(eventName)
-      if (!builder) {
-        return { eventToBuilder: eventToBuilder, eventsUnpaired: [eventName, ...eventsUnpaired] }
-      }
-      eventToBuilder[eventName] = builder
-      return { eventToBuilder, eventsUnpaired }
-    }, startFrom)
-    return ret
+    await Promise.all(eventNames.map((eventName, index) => this.createConsumer(eventName, builders[index], temporary)))
   }
 
   private createConsumer<T extends PublicDomainEvent>(
     eventName: string,
     builder: PublicDomainEventBuilder<T>,
     temporary: boolean
-  ) {
+  ): Promise<void> {
     return this.rabbit.startConsumer(
       (msg) => {
         return this.handleMessage<T>(msg, this.handlers[eventName] as EventHandler<T>, builder)
@@ -135,17 +116,15 @@ export class RabbitServiceBus implements EventBus {
           aggregateVersionIndex: event.aggregateVersion.index,
         },
       })
-      await handler(event, logger)
-      // logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
+      const ret = await handler(event, logger)
+      logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
       logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} m.`)
 
-      // TODO!!!
-      // if (result.ack) {
-      this.rabbit.ack(msg)
-      // } else {
-      //   this.rabbit.nack(msg, { requeue: false })
-      // }
-      // return result.payload
+      if (ret.ack) {
+        this.rabbit.ack(msg)
+      } else {
+        this.rabbit.nack(msg, { requeue: false })
+      }
     } catch (error) {
       this.logger.error(`Unable to handle message ${inspect(msg)} error: ${inspect(error)}`)
       this.rabbit.nack(msg, { requeue: !msg.fields.redelivered })
@@ -160,11 +139,10 @@ export class RabbitServiceBus implements EventBus {
     if (event instanceof PublicDomainEvent) {
       return this.rabbit.publish(toMessage(event))
     }
-    return Promise.resolve()
+    return Promise.reject()
   }
 
   register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void {
-    // TODO if already started we have to create it or raise an exception
     if (this.alreadyRegister(eventName)) throw new Error(`${eventName} is already registered!`)
     this.handlers[eventName] = handler
   }
