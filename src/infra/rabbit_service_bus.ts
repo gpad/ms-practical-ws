@@ -60,13 +60,6 @@ export function createEventBuilderFor<T, U extends PublicDomainEvent>(
   return new GenericPublicDomainEventBuilder(record, messageClass)
 }
 
-// type EventToBuilderResult<T extends PublicDomainEvent> = {
-//   eventToBuilder: {
-//     [k: string]: PublicDomainEventBuilder<T>
-//   }
-//   eventsUnpaired: string[]
-// }
-
 export class RabbitServiceBus implements EventBus {
   private handlers: { [key: string]: EventHandler<never> } = {}
 
@@ -80,29 +73,8 @@ export class RabbitServiceBus implements EventBus {
     if (!everyBuildersHaveHandlers) {
       throw new Error(`Some builders doesn't have an handler, builders: ${eventNames}, handlers: ${handlerNames}`)
     }
-    // const { eventsUnpaired, eventToBuilder } = this.eventsToBuilders(builders, eventNames)
-    // if (eventsUnpaired.length > 0) {
-    //   throw new Error(`Some builders are missing: ${eventsUnpaired}`)
-    // }
     await Promise.all(eventNames.map((eventName, index) => this.createConsumer(eventName, builders[index], temporary)))
   }
-
-  // private eventsToBuilders<T extends PublicDomainEvent>(
-  //   builders: PublicDomainEventBuilder<T>[],
-  //   eventNames: string[]
-  // ): EventToBuilderResult<T> {
-  //   const getBuilderOf = (eventName: string) => builders.find((b) => b.isAbleToManage(eventName))
-  //   const startFrom: EventToBuilderResult<T> = { eventToBuilder: {}, eventsUnpaired: [] }
-  //   const ret = eventNames.reduce(({ eventToBuilder, eventsUnpaired }, eventName) => {
-  //     const builder = getBuilderOf(eventName)
-  //     if (!builder) {
-  //       return { eventToBuilder: eventToBuilder, eventsUnpaired: [eventName, ...eventsUnpaired] }
-  //     }
-  //     eventToBuilder[eventName] = builder
-  //     return { eventToBuilder, eventsUnpaired }
-  //   }, startFrom)
-  //   return ret
-  // }
 
   private createConsumer<T extends PublicDomainEvent>(
     eventName: string,
@@ -148,13 +120,11 @@ export class RabbitServiceBus implements EventBus {
       logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
       logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} m.`)
 
-      // TODO!!!
       if (ret.ack) {
         this.rabbit.ack(msg)
       } else {
         this.rabbit.nack(msg, { requeue: false })
       }
-      // return ret.payload
     } catch (error) {
       this.logger.error(`Unable to handle message ${inspect(msg)} error: ${inspect(error)}`)
       this.rabbit.nack(msg, { requeue: !msg.fields.redelivered })

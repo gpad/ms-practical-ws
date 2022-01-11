@@ -18,7 +18,6 @@ describe("RabbitEventBus", () => {
     rabbitServiceBus = new RabbitServiceBus(rabbit, "ms_temp", logger)
     return rabbit.connect()
   })
-  // beforeEach(() => rabbitServiceBus.start([createEventBuilderFor("_", EmailConfirmed)], opts.rabbitOptions.tmpQueue))
   afterEach(() => rabbit.disconnect())
 
   it("when handler return ack then ack message", async () => {
@@ -107,14 +106,6 @@ describe("RabbitEventBus", () => {
     )
   })
 })
-
-// describe("Rabbit", () => {
-//   const opts = getTestOptions()
-//   const logger = configureLogger(opts.logger)
-//   const rabbit = new Rabbit(opts.rabbitOptions.uri, "temp", 50, logger)
-//   it("ack")
-//   it("nack")
-// })
 
 function getQueueInfoOf(info: RabbitGetInfo, eventName: string) {
   const queueInfo = info.queues.find((q) => q.queue.includes(eventName))
