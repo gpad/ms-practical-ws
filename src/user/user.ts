@@ -14,31 +14,34 @@ export interface UserData {
   email: string
 }
 
+export type UserCreatedPayload = {
+  id: string
+} & UserData
+
 export class UserCreated extends PublicDomainEvent {
   static readonly EventName = "user_created"
 
   constructor(
     id: EventId,
-    readonly userId: UserId,
-    readonly userData: UserData,
+    readonly payload: UserCreatedPayload,
     aggregateVersion: AggregateVersion,
     domainTrace: DomainTrace
   ) {
-    super(id, userId, UserCreated.EventName, aggregateVersion, domainTrace)
+    super(id, UserId.from(payload.id), UserCreated.EventName, aggregateVersion, domainTrace)
   }
 
   enrich({ trace, version }: EnrichOptions): UserCreated {
-    return new UserCreated(this.id, this.userId, this.userData, version, trace)
+    return new UserCreated(this.id, this.payload, version, trace)
   }
 
   static create(userId: UserId, userData: UserData): UserCreated {
     const eventId = EventId.new()
     const domainTrace = DomainTrace.create(eventId)
-    return new UserCreated(eventId, userId, userData, AggregateVersion.Empty, domainTrace)
+    return new UserCreated(eventId, { id: userId.toValue(), ...userData }, AggregateVersion.Empty, domainTrace)
   }
 
-  toPayload() {
-    return { id: this.userId.toValue(), ...this.userData }
+  toPayload(): UserCreatedPayload {
+    return this.payload
   }
 }
 
@@ -63,13 +66,13 @@ export class EmailConfirmed extends PublicDomainEvent {
     return new EmailConfirmed(this.id, this.payload, version, trace)
   }
 
-  static create(userId: UserId, userData: UserData): UserCreated {
+  static create(payload: EmailConfirmedPayload): EmailConfirmed {
     const eventId = EventId.new()
     const domainTrace = DomainTrace.create(eventId)
-    return new UserCreated(eventId, userId, userData, AggregateVersion.Empty, domainTrace)
+    return new EmailConfirmed(eventId, payload, AggregateVersion.Empty, domainTrace)
   }
 
-  toPayload() {
+  toPayload(): EmailConfirmedPayload {
     return this.payload
   }
 }

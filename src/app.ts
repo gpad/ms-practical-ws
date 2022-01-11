@@ -138,7 +138,7 @@ async function createApp(options: AppOptions) {
 
   app.use(errorHandler(logger))
 
-  eventBus.start([createEventBuilderFor("xxx", EmailConfirmed)], options.rabbitOptions.tmpQueue)
+  await eventBus.start([createEventBuilderFor("_", EmailConfirmed)], options.rabbitOptions.tmpQueue)
 
   return app
 }
