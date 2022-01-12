@@ -46,6 +46,12 @@ No migrations to run!
 
 ```
 
+By default the logs are suppressed in test, but you can activate in this way:
+
+```shell
+SILENT_LOG=FALSE npm run test
+```
+
 ## Running locally
 
 If you want to simply start the server you can:
@@ -90,4 +96,3 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/ms_template_dev npm run
 ```
 
 this command will run the migration before to dump the structure.
-

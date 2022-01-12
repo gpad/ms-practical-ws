@@ -1,10 +1,10 @@
-import Ajv, { JSONSchemaType } from "ajv"
+import Ajv from "ajv"
 import addFormats from "ajv-formats"
 import { expect } from "chai"
-import { UserCreatedPayload } from "../../src/user/user"
+import { validateUserCreatedPayload } from "../../src/user/validation"
 import { createUserCreatedPayload } from "../support/fake_data"
 const ajv = new Ajv({ strict: true })
-addFormats(ajv) // options can be passed, e.g. {allErrors: true}
+addFormats(ajv)
 
 const exampleSchema = {
   type: "object",
@@ -17,21 +17,6 @@ const exampleSchema = {
 }
 
 const validateExample = ajv.compile(exampleSchema)
-
-const UserCreatedPayloadSchema: JSONSchemaType<UserCreatedPayload> = {
-  type: "object",
-  properties: {
-    id: { type: "string", format: "uuid" },
-    confirmedAt: { type: "string", format: "date-time", nullable: true },
-    dateOfBirth: { type: "string", format: "date-time", nullable: true },
-    email: { type: "string" },
-    firstName: { type: "string" },
-    lastName: { type: "string" },
-  },
-  required: [],
-  additionalProperties: false,
-}
-const validateUserCreatedPayload = ajv.compile<UserCreatedPayload>(UserCreatedPayloadSchema)
 
 /**
  * Ajv documentation https://ajv.js.org/guide/getting-started.html

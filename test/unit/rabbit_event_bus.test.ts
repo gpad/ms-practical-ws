@@ -7,6 +7,7 @@ import { AssertionError, expect } from "chai"
 import { randomUUID } from "crypto"
 import { eventually, expectThrowsAsync } from "../support/expect_util"
 import { inspect } from "util"
+import { validateEmailConfirmedPayload, validateUserCreatedPayload } from "../../src/user/validation"
 
 describe("RabbitEventBus", () => {
   const opts = getTestOptions()
@@ -26,7 +27,10 @@ describe("RabbitEventBus", () => {
       events.push(e)
       return { ack: true, payload: "test" }
     })
-    await rabbitServiceBus.start([createEventBuilderFor("_", EmailConfirmed)], opts.rabbitOptions.tmpQueue)
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
+      opts.rabbitOptions.tmpQueue
+    )
     const event = EmailConfirmed.create({ userId: randomUUID(), email: "a@a.it" })
 
     await rabbitServiceBus.emit(event)
@@ -43,7 +47,10 @@ describe("RabbitEventBus", () => {
       events.push(e)
       return { ack: false, payload: "test" }
     })
-    await rabbitServiceBus.start([createEventBuilderFor("_", EmailConfirmed)], opts.rabbitOptions.tmpQueue)
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
+      opts.rabbitOptions.tmpQueue
+    )
     const event = EmailConfirmed.create({ userId: randomUUID(), email: "a@a.it" })
 
     await rabbitServiceBus.emit(event)
@@ -63,7 +70,10 @@ describe("RabbitEventBus", () => {
       events.push(e)
       throw new Error("Error !!!")
     })
-    await rabbitServiceBus.start([createEventBuilderFor("_", EmailConfirmed)], opts.rabbitOptions.tmpQueue)
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
+      opts.rabbitOptions.tmpQueue
+    )
     const event = EmailConfirmed.create({ userId: randomUUID(), email: "a@a.it" })
 
     await rabbitServiceBus.emit(event)
@@ -86,7 +96,10 @@ describe("RabbitEventBus", () => {
   it("create queue when start serviceBus", async () => {
     rabbitServiceBus.register(UserCreated.EventName, () => Promise.resolve({ ack: true, payload: "" }))
 
-    await rabbitServiceBus.start([createEventBuilderFor("_", UserCreated)], opts.rabbitOptions.tmpQueue)
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateUserCreatedPayload, UserCreated)],
+      opts.rabbitOptions.tmpQueue
+    )
 
     const info = (await rabbit.getInfo()) as RabbitGetInfo
     const queueInfo = getQueueInfoOf(info, UserCreated.EventName)
@@ -99,7 +112,10 @@ describe("RabbitEventBus", () => {
     await expectThrowsAsync(
       () =>
         rabbitServiceBus.start(
-          [createEventBuilderFor("_", UserCreated), createEventBuilderFor("_", EmailConfirmed)],
+          [
+            createEventBuilderFor(validateUserCreatedPayload, UserCreated),
+            createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed),
+          ],
           opts.rabbitOptions.tmpQueue
         ),
       Error

@@ -21,6 +21,7 @@ import { EmailConfirmed } from "./user/user"
 import { inspect } from "util"
 import multer from "multer"
 import { errorHandler } from "./infra/error_handler"
+import { validateEmailConfirmedPayload } from "./user/validation"
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 
@@ -138,7 +139,10 @@ async function createApp(options: AppOptions) {
 
   app.use(errorHandler(logger))
 
-  await eventBus.start([createEventBuilderFor("_", EmailConfirmed)], options.rabbitOptions.tmpQueue)
+  await eventBus.start(
+    [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
+    options.rabbitOptions.tmpQueue
+  )
 
   return app
 }

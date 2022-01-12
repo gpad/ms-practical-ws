@@ -9,7 +9,7 @@ import Ajv from "ajv"
 import addFormats from "ajv-formats"
 import { inspect } from "util"
 const ajv = new Ajv({ strict: true })
-addFormats(ajv) // options can be passed, e.g. {allErrors: true}
+addFormats(ajv)
 
 export const createUser = function (commandBus: CommandBus) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
