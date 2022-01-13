@@ -116,12 +116,13 @@ export class RabbitServiceBus implements EventBus {
       })
       const ret = await handler(event, logger)
       logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
-      logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} m.`)
 
       if (ret.ack) {
         this.rabbit.ack(msg)
+        logger.info(`ACK event: ${inspect(event)}`)
       } else {
         this.rabbit.nack(msg, { requeue: false })
+        logger.warn(`NACK event: ${inspect(event)}`)
       }
     } catch (error) {
       this.logger.error(`Unable to handle message ${inspect(msg)} error: ${inspect(error)}`)

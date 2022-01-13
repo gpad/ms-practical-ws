@@ -87,10 +87,10 @@ export async function connectToDb({ host, user, pwd, db }: DbOptions, logger: Lo
   }
 }
 
-export async function connectToRabbit({ uri }: RabbitOptions, msName: string, logger: Logger) {
+export async function connectToRabbit({ uri, tmpQueue }: RabbitOptions, msName: string, logger: Logger) {
   try {
     const rabbit = new Rabbit(uri, msName, 50, logger)
-    await rabbit.connect()
+    await rabbit.connect({ temporary: tmpQueue })
     return rabbit
   } catch (error) {
     console.error("Unable to connect to rabbit", error)

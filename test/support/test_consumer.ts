@@ -35,7 +35,7 @@ export class TestConsumer extends Rabbit {
   async start() {
     try {
       this.reset()
-      await super.connect()
+      await super.connect({ temporary: true })
       await super.startConsumer(
         (msg) => {
           const rabbitMessage = JSON.parse(msg.content.toString()) as RabbitMessage

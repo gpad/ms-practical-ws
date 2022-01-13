@@ -8,6 +8,9 @@ import { randomUUID } from "crypto"
 import { eventually, expectThrowsAsync } from "../support/expect_util"
 import { inspect } from "util"
 import { validateEmailConfirmedPayload, validateUserCreatedPayload } from "../../src/user/validation"
+import { connect } from "amqplib"
+import { wait } from "../../src/infra/wait"
+import { internet } from "faker"
 
 describe("RabbitEventBus", () => {
   const opts = getTestOptions()
@@ -15,9 +18,10 @@ describe("RabbitEventBus", () => {
   const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", 50, logger)
   let rabbitServiceBus: RabbitServiceBus
 
-  beforeEach(() => {
+  beforeEach(async () => {
     rabbitServiceBus = new RabbitServiceBus(rabbit, "ms_temp", logger)
-    return rabbit.connect()
+    await rabbit.connect({ temporary: opts.rabbitOptions.tmpQueue })
+    await clearDLQ(rabbit, opts.rabbitOptions.uri)
   })
   afterEach(() => rabbit.disconnect())
 
@@ -51,7 +55,7 @@ describe("RabbitEventBus", () => {
       [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
       opts.rabbitOptions.tmpQueue
     )
-    const event = EmailConfirmed.create({ userId: randomUUID(), email: "a@a.it" })
+    const event = EmailConfirmed.create({ userId: randomUUID(), email: internet.email() })
 
     await rabbitServiceBus.emit(event)
 
@@ -61,10 +65,15 @@ describe("RabbitEventBus", () => {
       expect(queueInfo.messageCount).eql(0)
     })
     expect(events).lengthOf(1)
-    // TODO verify it's present in DLQ
+    await eventually(async () => {
+      const dlqInfo = await rabbit.getDLQQueueInfo()
+      expect(dlqInfo.messageCount).gte(1)
+    })
   })
 
   it("when handler raise exception then nack and reenqueue message first time", async () => {
+    const { messageCount } = await rabbit.getDLQQueueInfo()
+    expect(messageCount).eql(0)
     const events: EmailConfirmed[] = []
     rabbitServiceBus.register(EmailConfirmed.EventName, async (e: EmailConfirmed) => {
       events.push(e)
@@ -84,6 +93,10 @@ describe("RabbitEventBus", () => {
       expect(queueInfo.messageCount).eql(0)
     })
     expect(events).lengthOf(2)
+    await eventually(async () => {
+      const dlqInfo = await rabbit.getDLQQueueInfo()
+      expect(dlqInfo.messageCount).gte(1)
+    })
   })
 
   it("raise exception if handler is already registered", () => {
@@ -122,6 +135,20 @@ describe("RabbitEventBus", () => {
     )
   })
 })
+
+async function clearDLQ(rabbit: Rabbit, uri: string) {
+  for (let i = 0; i < 3; i++) {
+    const info = await rabbit.getDLQQueueInfo()
+    const connection = await connect(uri)
+    const ch = await connection.createChannel()
+    await ch.purgeQueue(info.queue)
+    const { messageCount } = await rabbit.getDLQQueueInfo()
+    expect(messageCount).eql(0)
+    await ch.close()
+    await connection.close()
+    await wait(100)
+  }
+}
 
 function getQueueInfoOf(info: RabbitGetInfo, eventName: string) {
   const queueInfo = info.queues.find((q) => q.queue.includes(eventName))

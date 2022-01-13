@@ -29,13 +29,16 @@ export interface RabbitGetInfo {
   serverProperties: ServerProperties
 }
 
+const DeadLetterExchange = "dead_letter_exchange"
+const EventsExchange = "events"
+
 export class Rabbit {
   private connection: Connection | null = null
   private channel: ConfirmChannel | null = null
-  private exchangeName = "events"
   private waiting = false
   private stopping = false
   private consumers: string[] = []
+  private deadLetterQueueName?: string
   constructor(
     private readonly uri: string,
     readonly msName: string,
@@ -43,7 +46,7 @@ export class Rabbit {
     private logger: Logger
   ) {}
 
-  async connect() {
+  async connect({ temporary }: { temporary: boolean }) {
     try {
       this.logger.info("Start to connect to rabbit ...")
       this.stopping = false
@@ -51,16 +54,16 @@ export class Rabbit {
       this.connection.on("error", async (err) => {
         const timeout = random(5000)
         this.logger.error(`Connection with rabbit closed with ${inspect(err)} try to reconnect in ${timeout} ms`)
-        this.scheduleReconnection(timeout)
+        this.scheduleReconnection(timeout, temporary)
       })
       this.connection.on("close", async (reason) => {
         const timeout = random(5000)
         this.logger.info(`Connection with rabbit closed with ${inspect(reason)} try to reconnect in ${timeout} ms`)
-        this.scheduleReconnection(timeout)
+        this.scheduleReconnection(timeout, temporary)
       })
       await this.createChannel(this.connection)
       await this.setupExchanges()
-      // await this.setupQueues()
+      await this.setupDLQ({ temporary })
       this.logger.info("Connection with rabbit executed!!!")
     } catch (error) {
       this.logger.error(`Error connection to ${this.uri} ${inspect(error)}`)
@@ -76,11 +79,14 @@ export class Rabbit {
   }
 
   async startConsumer(consumer: RabbitConsumerCallBack, opts: RabbitConsumerOptions) {
-    if (!this.channel) throw new Error("Unable to start consumer because connection is null")
+    if (!this.channel) {
+      throw new Error("Unable to start consumer because channel is null")
+    }
     await this.channel.assertQueue(opts.queueName, {
       exclusive: opts.temporary,
       durable: !opts.temporary,
       autoDelete: opts.temporary,
+      deadLetterExchange: DeadLetterExchange,
     })
 
     await this.channel.bindQueue(opts.queueName, opts.exchange, opts.bindingKey)
@@ -95,12 +101,16 @@ export class Rabbit {
   }
 
   ack(msg: Message) {
-    if (!this.channel) throw new Error(`Unable to ack message ${inspect(msg)} because connection is null`)
+    if (!this.channel) {
+      throw new Error(`Unable to ack message ${inspect(msg)} because channel is null`)
+    }
     this.channel.ack(msg)
   }
 
   nack(msg: Message, { requeue }: { requeue: boolean }) {
-    if (!this.channel) throw new Error(`Unable to nack message ${inspect(msg)} because connection is null`)
+    if (!this.channel) {
+      throw new Error(`Unable to nack message ${inspect(msg)} because channel is null`)
+    }
     this.channel.nack(msg, false, requeue)
   }
 
@@ -112,12 +122,9 @@ export class Rabbit {
       throw new Error("Unable to getInfo because channel is null")
     }
     try {
-      await this.channel.checkExchange(this.exchangeName)
-      const exchanges = [this.exchangeName]
-      if (!this.channel) {
-        throw new Error("Unable to getInfo because channel is null")
-      }
-      const ch: ConfirmChannel = this.channel
+      await this.channel.checkExchange(EventsExchange)
+      const exchanges = [EventsExchange]
+      const ch = this.channel
       const queues = await Promise.all(this.consumers.map((q) => ch.checkQueue(q)))
       return { exchanges, queues, serverProperties: this.connection.connection.serverProperties }
     } catch (error) {
@@ -125,11 +132,23 @@ export class Rabbit {
     }
   }
 
+  getDLQQueueInfo() {
+    if (!this.channel) {
+      throw new Error("Unable to getInfo because channel is null")
+    }
+    if (!this.deadLetterQueueName) {
+      throw new Error("Unable to getInfo because deadLetterQueueName was not created")
+    }
+    return this.channel.checkQueue(this.deadLetterQueueName)
+  }
+
   // TODO it's too specific!!!
   publish(message: RabbitMessage): Promise<void> {
-    if (!this.channel) throw new Error("Unable to publish because connection is null")
+    if (!this.channel) {
+      throw new Error("Unable to publish because connection is null")
+    }
     const content: Buffer = Buffer.from(JSON.stringify(message))
-    this.channel.publish(this.exchangeName, `event.${this.msName}.${message.eventName}`, content, {
+    this.channel.publish(EventsExchange, `event.${this.msName}.${message.eventName}`, content, {
       appId: this.msName,
       messageId: message.messageId,
       correlationId: message.correlationId,
@@ -143,12 +162,10 @@ export class Rabbit {
       this.logger.warn("Consumed a null message")
       return Promise.resolve()
     }
-
-    // const rabbitMessage = JSON.parse(msg.content.toString()) as RabbitMessage
     return cb(msg)
   }
 
-  private scheduleReconnection(timeout: number) {
+  private scheduleReconnection(timeout: number, temporary: boolean) {
     if (this.stopping) {
       this.logger.info("Don't reschedule connection because we are stopping")
       return
@@ -161,11 +178,11 @@ export class Rabbit {
     setTimeout(async () => {
       this.waiting = false
       try {
-        await this.connect()
+        await this.connect({ temporary })
       } catch (error) {
         const t = random(5000)
         this.logger.error(`Unable to connect with rabbit, schedule a new connection in ${timeout} msec`)
-        this.scheduleReconnection(t)
+        this.scheduleReconnection(t, temporary)
       }
     }, timeout)
   }
@@ -181,25 +198,23 @@ export class Rabbit {
     })
   }
 
-  private setupExchanges() {
-    return this.channel?.assertExchange(this.exchangeName, "topic", {
+  private async setupExchanges() {
+    if (!this.channel) {
+      throw new Error("Unable to setup exchange because channel is null")
+    }
+    await this.channel.assertExchange(DeadLetterExchange, "topic", { durable: true })
+    await this.channel.assertExchange(EventsExchange, "topic", {
       durable: true,
-      alternateExchange: "dead_letter_exchange",
+      alternateExchange: DeadLetterExchange,
     })
   }
 
-  // private setupQueues() {
-  //   return this.channel?.assertQueue(this.queueName, {
-  //     exclusive: this.tmpQueue ? true : false,
-  //     durable: this.tmpQueue ? false : true,
-  //     // autoDelete?: boolean | undefined;
-  //     // arguments?: any;
-  //     // messageTtl?: number | undefined;
-  //     // expires?: number | undefined;
-  //     deadLetterExchange: "dead_letter_exchange",
-  //     // deadLetterRoutingKey?: string | undefined;
-  //     // maxLength?: number | undefined;
-  //     // maxPriority?: number | undefined;
-  //   })
-  // }
+  private async setupDLQ({ temporary }: { temporary: boolean }) {
+    if (!this.channel) {
+      throw new Error("Unable to setup exchange because channel is null")
+    }
+    this.deadLetterQueueName = `dead_letter_queue${temporary ? "_tmp" : ""}`
+    await this.channel.assertQueue(this.deadLetterQueueName, { durable: !temporary, autoDelete: temporary })
+    await this.channel.bindQueue(this.deadLetterQueueName, DeadLetterExchange, "#")
+  }
 }
