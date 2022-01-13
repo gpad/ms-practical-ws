@@ -30,5 +30,3 @@ const EmailConfirmedPayloadSchema: JSONSchemaType<EmailConfirmedPayload> = {
   additionalProperties: false,
 }
 export const validateEmailConfirmedPayload = ajv.compile<EmailConfirmedPayload>(EmailConfirmedPayloadSchema)
-
-// export function validateEmailConfirmedPayload() {}

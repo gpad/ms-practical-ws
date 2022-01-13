@@ -58,7 +58,7 @@ function uploadPhotoCommandFrom(req: Request): UploadPhotoCommand {
   return UploadPhotoCommand.create(commandId, UserId.from(req.params.id), x.buffer, domainTrace)
 }
 
-interface CreateUserPayload {
+export interface CreateUserPayload {
   dateOfBirth?: string | null
   email: string
   firstName: string
@@ -80,7 +80,7 @@ const CreateUserPayloadSchema = {
 
 ajv.compile<CreateUserPayload>(CreateUserPayloadSchema)
 
-interface CreateUserBody {
+export interface CreateUserBody {
   commandName: "create_user"
   payload: CreateUserPayload
 }

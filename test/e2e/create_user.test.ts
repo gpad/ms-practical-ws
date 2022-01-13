@@ -7,6 +7,7 @@ import { UserCreated, UserData } from "../../src/user/user"
 import { configureLogger } from "../../src/app"
 import { TestConsumer } from "../support/test_consumer"
 import { validate } from "uuid"
+import { CreateUserPayload } from "../../src/controllers/users"
 
 describe("create user via API", async () => {
   let app: Application
@@ -23,12 +24,7 @@ describe("create user via API", async () => {
   afterEach(() => testConsumer.disconnect())
 
   it("return 200 for /api/users", async () => {
-    const payload: Omit<UserData, "confirmedAt"> = {
-      firstName: name.firstName(),
-      lastName: name.lastName(),
-      dateOfBirth: new Date(),
-      email: internet.email(),
-    }
+    const payload: CreateUserPayload = fakeCreateUserPayload()
     const body = { commandName: "create_user", payload }
     const res = await request(app).post("/api/users").send(body).expect(200)
 
@@ -37,12 +33,7 @@ describe("create user via API", async () => {
   })
 
   it("emit user_created event", async () => {
-    const payload: Omit<UserData, "confirmedAt"> = {
-      firstName: name.firstName(),
-      lastName: name.lastName(),
-      dateOfBirth: new Date(),
-      email: internet.email(),
-    }
+    const payload: CreateUserPayload = fakeCreateUserPayload()
     const body = { commandName: "create_user", payload }
     const res = await request(app).post("/api/users").send(body).expect(200)
 
@@ -53,3 +44,12 @@ describe("create user via API", async () => {
     })
   })
 })
+
+function fakeCreateUserPayload(): CreateUserPayload {
+  return {
+    firstName: name.firstName(),
+    lastName: name.lastName(),
+    dateOfBirth: new Date().toISOString(),
+    email: internet.email(),
+  }
+}

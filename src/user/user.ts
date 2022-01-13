@@ -18,7 +18,10 @@ export type UserCreatedPayload = {
   id: string
   dateOfBirth: string | null
   confirmedAt: string | null
-} & Omit<UserData, "dateOfBirth" | "confirmedAt">
+  firstName: string
+  lastName: string
+  email: string
+}
 
 export class UserCreated extends PublicDomainEvent {
   static readonly EventName = "user_created"
