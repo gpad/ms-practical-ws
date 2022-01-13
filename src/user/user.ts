@@ -16,7 +16,12 @@ export interface UserData {
 
 export type UserCreatedPayload = {
   id: string
-} & UserData
+  dateOfBirth: string | null
+  confirmedAt: string | null
+  firstName: string
+  lastName: string
+  email: string
+}
 
 export class UserCreated extends PublicDomainEvent {
   static readonly EventName = "user_created"
@@ -37,7 +42,7 @@ export class UserCreated extends PublicDomainEvent {
   static create(userId: UserId, userData: UserData): UserCreated {
     const eventId = EventId.new()
     const domainTrace = DomainTrace.create(eventId)
-    return new UserCreated(eventId, { id: userId.toValue(), ...userData }, AggregateVersion.Empty, domainTrace)
+    return new UserCreated(eventId, toUserPayload(userId, userData), AggregateVersion.Empty, domainTrace)
   }
 
   toPayload(): UserCreatedPayload {
@@ -102,5 +107,14 @@ export class User extends Aggregate<UserId> {
 
   public get data(): UserData {
     return this._data
+  }
+}
+
+export function toUserPayload(userId: UserId, userData: UserData): UserCreatedPayload {
+  return {
+    id: userId.toValue(),
+    ...userData,
+    confirmedAt: userData.confirmedAt?.toISOString() || null,
+    dateOfBirth: userData.dateOfBirth?.toISOString() || null,
   }
 }

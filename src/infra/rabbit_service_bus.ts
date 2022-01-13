@@ -8,6 +8,7 @@ import { CausationId, CorrelationId, EventId } from "./ids"
 import { DomainTrace } from "./domain_trace"
 import { inspect } from "util"
 import { elapsedFrom } from "./wait"
+import { ValidateFunction } from "ajv"
 
 type PublicDomainEventCtor<T, U extends PublicDomainEvent> = {
   new (eventId: EventId, payload: T, aggregateVersion: AggregateVersion, domainTrace: DomainTrace): U
@@ -30,21 +31,19 @@ export interface PublicDomainEventBuilder<T extends PublicDomainEvent> {
 }
 
 export class GenericPublicDomainEventBuilder<T, U extends PublicDomainEvent> implements PublicDomainEventBuilder<U> {
-  constructor(private record: unknown, private MessageType: PublicDomainEventCtor<T, U>) {
-    // TODO how to check type
-    if (!this.record) throw Error("todo")
-  }
+  constructor(private validation: ValidateFunction<T>, private MessageType: PublicDomainEventCtor<T, U>) {}
 
   getEventName(): string {
     return this.MessageType.EventName
   }
 
   createFromMessage(msg: ReceivedMessage): U {
-    // checkRuntype(this.record, msg.payload)
+    if (!this.validation(msg.payload)) {
+      throw new Error(`Unable to verify msg: ${inspect(msg)} because: ${this.validation.errors}`)
+    }
     const eventId = EventId.from(msg.messageId)
-    // const domainTrace = DomainTrace.extractFromMessage(msg)
     const domainTrace = new DomainTrace(CorrelationId.from(msg.correlationId), CausationId.from(msg.causationId))
-    return new this.MessageType(eventId, msg.payload as T, AggregateVersion.from(msg), domainTrace)
+    return new this.MessageType(eventId, msg.payload, AggregateVersion.from(msg), domainTrace)
   }
 
   isAbleToManage(eventName: string): boolean {
@@ -53,11 +52,10 @@ export class GenericPublicDomainEventBuilder<T, U extends PublicDomainEvent> imp
 }
 
 export function createEventBuilderFor<T, U extends PublicDomainEvent>(
-  // record: Runtype<T>,
-  record: unknown,
+  validation: ValidateFunction<T>,
   messageClass: PublicDomainEventCtor<T, U>
 ) {
-  return new GenericPublicDomainEventBuilder(record, messageClass)
+  return new GenericPublicDomainEventBuilder(validation, messageClass)
 }
 
 export class RabbitServiceBus implements EventBus {
