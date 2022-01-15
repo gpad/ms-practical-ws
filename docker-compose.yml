@@ -19,3 +19,22 @@ services:
     ports:
       - "15672:15672"
       - "5672:5672"
+
+  ms-schdeduler:
+    image: mcuadros/ofelia:latest
+    container_name: ms-schdeduler
+    command: daemon --docker
+    depends_on:
+      - ms-curl
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      ofelia.job-run.ping-me.schedule: "@every 30s"
+      ofelia.job-run.ping-me.container: "ms-curl"
+
+  ms-curl:
+    image: curlimages/curl:latest
+    container_name: ms-curl
+    command: "curl -v http://host.docker.internal:3000/healtz"
+    extra_hosts:
+      - host.docker.internal:host-gateway

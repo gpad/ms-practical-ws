@@ -96,3 +96,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/ms_template_dev npm run
 ```
 
 this command will run the migration before to dump the structure.
+
+## Scheduled Job
+
+In docker-compose there is a scheduled task that call `/healtz` every 30 seconds. See [ofelia](https://github.com/mcuadros/ofelia) on github for more info.
