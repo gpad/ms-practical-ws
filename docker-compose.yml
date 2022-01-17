@@ -35,6 +35,6 @@ services:
   ms-curl:
     image: curlimages/curl:latest
     container_name: ms-curl
-    command: "curl -v http://host.docker.internal:3000/healtz"
+    command: "curl -v http://host.docker.internal:3000/healthz"
     extra_hosts:
       - host.docker.internal:host-gateway
