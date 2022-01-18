@@ -11,4 +11,8 @@ export class FakeEventBus implements EventBus {
     this.events.push(event)
     return Promise.resolve()
   }
+  emits<T extends DomainEvent>(events: T[]): Promise<void> {
+    events.forEach((e) => this.events.push(e))
+    return Promise.resolve()
+  }
 }

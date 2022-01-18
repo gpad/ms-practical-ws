@@ -9,6 +9,7 @@ import { UserRepository } from "../../src/user/user_repository"
 import { FakeEventBus } from "../support/fake_event_bus"
 import { createUser } from "../support/fake_data"
 import { getTestOptions } from "../support/test_app"
+import sql from "sql-template-tag"
 
 describe("UserRepository", () => {
   const opts = getTestOptions()
@@ -45,6 +46,24 @@ describe("UserRepository", () => {
 
     expect(fromDb.id).eql(user.id)
     expect(fromDb.data).eql(user.data)
+  })
+
+  it("save a new user and all events are emitted", async () => {
+    const user = User.create(UserId.new(), {
+      firstName: name.firstName(),
+      lastName: name.lastName(),
+      dateOfBirth: new Date(2006, 6, 6),
+      email: internet.email(),
+      confirmedAt: null,
+    })
+    const repository = new UserRepository(db, fakeEventBus)
+    await repository.save(user, domainTrace, logger)
+
+    const ret = await db.query<boolean[]>(
+      sql`select published from aggregate_events where aggregate_id=${user.id.toValue()}`
+    )
+    expect(ret).lengthOf(1)
+    expect(ret.every((r) => r)).true
   })
 
   it("update user", async () => {

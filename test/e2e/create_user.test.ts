@@ -4,13 +4,16 @@ import { getTestApp, getTestOptions } from "../support/test_app"
 import { expect } from "chai"
 import { internet, name } from "faker"
 import { UserCreated, UserData } from "../../src/user/user"
-import { configureLogger } from "../../src/app"
+import { configureLogger, connectToDb } from "../../src/app"
 import { TestConsumer } from "../support/test_consumer"
 import { validate } from "uuid"
 import { CreateUserPayload } from "../../src/controllers/users"
+import { Db } from "../../src/infra/db"
+import sql from "sql-template-tag"
 
 describe("create user via API", async () => {
   let app: Application
+  let db: Db
 
   const opts = getTestOptions()
   const logger = configureLogger(opts.logger)
@@ -18,6 +21,11 @@ describe("create user via API", async () => {
 
   before(async () => {
     app = await getTestApp()
+  })
+
+  beforeEach(async () => {
+    const res = await connectToDb(opts.dbOptions, logger)
+    db = res.db
   })
 
   beforeEach(() => testConsumer.start())
@@ -42,6 +50,9 @@ describe("create user via API", async () => {
       const data = msg.payload as UserData & { id: string }
       return msg.eventName === UserCreated.EventName && data.id === userId && data.email === payload.email
     })
+    const ret = await db.query<boolean[]>(sql`select published from aggregate_events where aggregate_id=${userId}`)
+    expect(ret).lengthOf(1)
+    expect(ret.every((r) => r)).true
   })
 })
 

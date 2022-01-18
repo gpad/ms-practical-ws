@@ -157,6 +157,25 @@ export class Rabbit {
     return Promise.resolve(this.channel.waitForConfirms())
   }
 
+  publishAll(messages: RabbitMessage[]): Promise<void> {
+    messages.forEach((message) => {
+      if (!this.channel) {
+        throw new Error("Unable to publish because connection is null")
+      }
+      const content: Buffer = Buffer.from(JSON.stringify(message))
+      this.channel.publish(EventsExchange, `event.${this.msName}.${message.eventName}`, content, {
+        appId: this.msName,
+        messageId: message.messageId,
+        correlationId: message.correlationId,
+        persistent: true,
+      })
+    })
+    if (!this.channel) {
+      throw new Error("Unable to publish because connection is null")
+    }
+    return Promise.resolve(this.channel.waitForConfirms())
+  }
+
   private handleMessage(msg: ConsumeMessage | null, cb: RabbitConsumerCallBack): Promise<void> {
     if (!msg) {
       this.logger.warn("Consumed a null message")

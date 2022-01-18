@@ -11,6 +11,7 @@ export type EventHandler<T extends DomainEvent> = (e: T, logger: Logger) => Prom
 export interface EventBus {
   register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void
   emit<T extends DomainEvent>(event: T): Promise<void>
+  emits<T extends DomainEvent>(events: T[]): Promise<void>
 }
 
 export function toMessage(event: PublicDomainEvent): RabbitMessage {
