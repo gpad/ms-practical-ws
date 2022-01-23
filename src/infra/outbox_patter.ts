@@ -48,16 +48,20 @@ async function publishEventsFromDB(toPublish: SqlSchema.aggregate_events[], rabb
   if (isEmpty(toPublish)) return
   logger.info(`Try to publish this events ${inspect(toPublish, { depth: 10 })}`)
   const ids = toPublish.map((e) => e.id)
-  await db.transaction(async (tr) => {
-    const xyz = await tr.query<SqlSchema.aggregate_events>(
-      sql`select * from aggregate_events where id IN (${join(ids)}) FOR UPDATE`
-    )
-    const events = filterAlreadyPublished(toPublish, xyz)
-    logger.info(`Publishing events ${inspect(events, { depth: 10 })}`)
-    await rabbit.publishAll(events.map(toMessageFromDb))
-    await tr.query(sql`update aggregate_events set published = true where id IN (${join(ids)})`)
-    logger.info(`Publishing events ${inspect(events, { depth: 10 })} completed!!!`)
-  })
+  try {
+    await db.transaction(async (tr) => {
+      const xyz = await tr.query<SqlSchema.aggregate_events>(
+        sql`select * from aggregate_events where id IN (${join(ids)}) FOR UPDATE`
+      )
+      const events = filterAlreadyPublished(toPublish, xyz)
+      logger.info(`Publishing events ${inspect(events, { depth: 10 })}`)
+      await rabbit.publishAll(events.map(toMessageFromDb))
+      await tr.query(sql`update aggregate_events set published = true where id IN (${join(ids)})`)
+      logger.info(`Publishing events ${inspect(events, { depth: 10 })} completed!!!`)
+    })
+  } catch (error) {
+    logger.error(`Unable to emit events: ${inspect(toPublish, { depth: 10 })}`)
+  }
 }
 
 function toMessageFromDb(message: SqlSchema.aggregate_events): RabbitMessage {

@@ -83,4 +83,16 @@ describe("UserRepository", () => {
     expect(fromDb.id).eql(user.id)
     expect(fromDb.data).eql(user.data)
   })
+
+  it("save doesn't file also if eventBus raise exception", async () => {
+    const user = createUser()
+    const repository = new UserRepository(db, fakeEventBus)
+    fakeEventBus.raiseOnEmit()
+
+    await repository.save(user, domainTrace, logger)
+
+    const fromDb = await repository.getById(user.id)
+    expect(fromDb.id).eql(user.id)
+    expect(fromDb.data).eql(user.data)
+  })
 })

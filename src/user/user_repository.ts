@@ -71,20 +71,24 @@ export class UserRepository {
     logger.info(`User ${user.id} saved! - ${trace} elapsed: ${Date.now() - startAt}`)
 
     logger.info(`Emitting all events ${inspect(enrichedEvents)} from successful write to database`)
-    await this.emitAllEvents(enrichedEvents)
+    await this.emitAllEvents(enrichedEvents, logger)
     logger.info(`All events for ${user.id} successfully emitted! - ${trace} elapsed: ${Date.now() - startAt}`)
   }
 
-  private async emitAllEvents(events: DomainEvent[]) {
+  private async emitAllEvents(events: DomainEvent[], logger: Logger) {
     if (isEmpty(events)) return
     const ids = events.map((e) => e.id.toValue())
-    await this.db.transaction(async (tr) => {
-      const xyz = await tr.query<SqlSchema.aggregate_events>(
-        sql`select * from aggregate_events where id IN (${join(ids)}) FOR UPDATE`
-      )
-      await this.eventBus.emits(filterAlreadyPublished(events, xyz))
-      await tr.query(sql`update aggregate_events set published = true where id IN (${join(ids)})`)
-    })
+    try {
+      await this.db.transaction(async (tr) => {
+        const xyz = await tr.query<SqlSchema.aggregate_events>(
+          sql`select * from aggregate_events where id IN (${join(ids)}) FOR UPDATE`
+        )
+        await this.eventBus.emits(filterAlreadyPublished(events, xyz))
+        await tr.query(sql`update aggregate_events set published = true where id IN (${join(ids)})`)
+      })
+    } catch (error) {
+      logger.error(`Unable to emit events: ${inspect(events, { depth: 10 })}`)
+    }
   }
 }
 
@@ -129,7 +133,6 @@ async function saveEvents(
   )`
   )
   await Promise.all(queries.map((q) => tr.query(q)))
-
   return enrichedEvents
 }
 
