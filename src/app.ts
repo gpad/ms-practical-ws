@@ -22,7 +22,7 @@ import { inspect } from "util"
 import multer from "multer"
 import { errorHandler } from "./infra/error_handler"
 import { validateEmailConfirmedPayload } from "./user/validation"
-import { startOutboxPatternMonitor } from "./infra/outbox_patter"
+import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 
@@ -140,7 +140,7 @@ async function createApp(options: AppOptions) {
 
   app.use(errorHandler(logger))
 
-  startOutboxPatternMonitor(rabbit, db, logger)
+  await startOutboxPatternMonitor(rabbit, db, logger)
 
   await eventBus.start(
     [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
