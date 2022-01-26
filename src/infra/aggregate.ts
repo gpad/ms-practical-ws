@@ -56,6 +56,10 @@ export abstract class DomainEvent {
   ) {}
 
   abstract enrich({ trace, version }: EnrichOptions): DomainEvent
+  abstract toPayload(): unknown
+  get public() {
+    return false
+  }
 }
 
 export abstract class PublicDomainEvent extends DomainEvent {
@@ -70,6 +74,9 @@ export abstract class PublicDomainEvent extends DomainEvent {
     super(id, aggregateId, eventName, aggregateVersion, domainTrace)
   }
 
+  get public() {
+    return true
+  }
   abstract toPayload(): unknown
 }
 

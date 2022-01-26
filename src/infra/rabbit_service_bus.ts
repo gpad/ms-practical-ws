@@ -141,6 +141,16 @@ export class RabbitServiceBus implements EventBus {
     return Promise.reject()
   }
 
+  emits<T extends DomainEvent>(events: T[]): Promise<void> {
+    function isPublicDomainEvent(e: unknown): e is PublicDomainEvent {
+      return e instanceof PublicDomainEvent
+    }
+    const eventsToPublish = events
+      .filter((e) => isPublicDomainEvent(e))
+      .map((e) => toMessage(e as unknown as PublicDomainEvent))
+    return this.rabbit.publishAll(eventsToPublish)
+  }
+
   register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void {
     if (this.alreadyRegister(eventName)) throw new Error(`${eventName} is already registered!`)
     this.handlers[eventName] = handler
