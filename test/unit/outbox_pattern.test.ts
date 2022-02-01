@@ -27,13 +27,17 @@ describe("outbox patter", () => {
   afterEach(() => rabbit.disconnect())
 
   it("publish event when rabbit comes back", async () => {
+    const notPublicEvent1 = await addUnpublishedEvent(db, { public: false })
+    const notPublicEvent2 = await addUnpublishedEvent(db, { public: false })
     const event = await addUnpublishedEvent(db)
     await startOutboxPatternMonitor(rabbit, db, logger)
     await testConsumer.assertReceive((msg) => msg.messageId === event.id)
+    testConsumer.assertNotReceived((msg) => msg.messageId === notPublicEvent1.id)
+    testConsumer.assertNotReceived((msg) => msg.messageId === notPublicEvent2.id)
   })
 })
 
-function addUnpublishedEvent(db: Db) {
+function addUnpublishedEvent(db: Db, opts: Partial<SqlSchema.aggregate_events> = {}) {
   const event: SqlSchema.aggregate_events = {
     id: randomUUID(),
     aggregate_id: randomUUID(),
@@ -45,6 +49,7 @@ function addUnpublishedEvent(db: Db) {
     payload: { value: randomUUID() },
     public: true,
     published: false,
+    ...opts,
   }
   const query = sql`INSERT into aggregate_events (
     id,
