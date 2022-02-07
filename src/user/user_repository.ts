@@ -68,11 +68,11 @@ export class UserRepository {
       }
       return saveEvents(tr, user.commitEvents(), user.version, trace)
     })
-    logger.info(`User ${user.id} saved! - ${trace} elapsed: ${Date.now() - startAt}`)
+    logger.info(`User ${user.id} saved! - ${inspect(trace)} elapsed: ${Date.now() - startAt}`)
 
     logger.info(`Emitting all events ${inspect(enrichedEvents)} from successful write to database`)
     await this.emitAllEvents(enrichedEvents, logger)
-    logger.info(`All events for ${user.id} successfully emitted! - ${trace} elapsed: ${Date.now() - startAt}`)
+    logger.info(`All events for ${user.id} successfully emitted! - ${inspect(trace)} elapsed: ${Date.now() - startAt}`)
   }
 
   private async emitAllEvents(events: DomainEvent[], logger: Logger) {

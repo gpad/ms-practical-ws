@@ -42,7 +42,7 @@ export class UserCreated extends PublicDomainEvent {
   static create(userId: UserId, userData: UserData): UserCreated {
     const eventId = EventId.new()
     const domainTrace = DomainTrace.create(eventId)
-    return new UserCreated(eventId, toUserPayload(userId, userData), AggregateVersion.Empty, domainTrace)
+    return new UserCreated(eventId, toUserCreatedPayload(userId, userData), AggregateVersion.Empty, domainTrace)
   }
 
   toPayload(): UserCreatedPayload {
@@ -110,7 +110,7 @@ export class User extends Aggregate<UserId> {
   }
 }
 
-export function toUserPayload(userId: UserId, userData: UserData): UserCreatedPayload {
+export function toUserCreatedPayload(userId: UserId, userData: UserData): UserCreatedPayload {
   return {
     id: userId.toValue(),
     ...userData,

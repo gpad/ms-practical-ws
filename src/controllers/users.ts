@@ -8,6 +8,7 @@ import { isArray } from "lodash"
 import Ajv from "ajv"
 import addFormats from "ajv-formats"
 import { inspect } from "util"
+import { UserItem, UserView } from "../user/user_view"
 const ajv = new Ajv({ strict: true })
 addFormats(ajv)
 
@@ -21,6 +22,26 @@ export const createUser = function (commandBus: CommandBus) {
         return
       }
       res.status(200).json({ status: "ok", id: ret.payload.id.toValue() })
+    } catch (e) {
+      next(e as Error)
+    }
+  }
+}
+
+export function getUsers(userView: UserView) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const users = await userView.findAll()
+      const data = users.map((u) => toUserPayload(u))
+      const resp = { data }
+      if (!validateUsersPayloadBodySchema(resp)) {
+        req.logger.error(
+          `Unable to return correct schema for UsersPayload: ${inspect(resp)} - errors: ${inspect(
+            validateUsersPayloadBodySchema.errors
+          )}`
+        )
+      }
+      res.status(200).json(resp)
     } catch (e) {
       next(e as Error)
     }
@@ -108,4 +129,44 @@ function toUserData(payload: CreateUserPayload): UserData {
     confirmedAt: null,
     dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
   }
+}
+
+export interface UserPayload {
+  id: string
+  email: string
+  dateOfBirth: Date | null
+  confirmedAt: Date | null
+  firstName: string
+  lastName: string
+  version: number
+}
+
+const UserPayloadSchema = {
+  $id: "UserPayloadSchema",
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    dateOfBirth: { type: "string", format: "date-time", nullable: true },
+    confirmedAt: { type: "string", format: "date-time", nullable: true },
+    email: { type: "string", format: "email" },
+    firstName: { type: "string" },
+    lastName: { type: "string" },
+    version: { type: "number" },
+  },
+  required: ["id", "dateOfBirth", "confirmedAt", "email", "firstName", "lastName", "version"],
+  additionalProperties: false,
+}
+
+const UsersPayloadBodySchema = {
+  type: "object",
+  properties: {
+    data: { type: "array", items: { $ref: "UserPayloadSchema" } },
+  },
+}
+
+ajv.compile<UserPayload>(UserPayloadSchema)
+export const validateUsersPayloadBodySchema = ajv.compile(UsersPayloadBodySchema)
+
+function toUserPayload(userItem: UserItem): UserPayload {
+  return userItem
 }
