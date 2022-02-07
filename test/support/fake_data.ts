@@ -1,5 +1,5 @@
 import { internet, name } from "faker"
-import { toUserPayload, User, UserCreatedPayload, UserData, UserId } from "../../src/user/user"
+import { toUserCreatedPayload, User, UserCreatedPayload, UserData, UserId } from "../../src/user/user"
 
 export function createUser() {
   return User.create(UserId.new(), createUserData())
@@ -16,5 +16,5 @@ export function createUserData(): UserData {
 }
 
 export function createUserCreatedPayload(): UserCreatedPayload {
-  return toUserPayload(UserId.new(), createUserData())
+  return toUserCreatedPayload(UserId.new(), createUserData())
 }

@@ -23,6 +23,7 @@ import multer from "multer"
 import { errorHandler } from "./infra/error_handler"
 import { validateEmailConfirmedPayload } from "./user/validation"
 import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
+import { UserView } from "./user/user_view"
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 
@@ -110,6 +111,7 @@ async function createApp(options: AppOptions) {
   const eventBus = new RabbitServiceBus(rabbit, "ms-template", logger)
 
   const userRepository = new UserRepository(db, eventBus)
+  const userView = new UserView(db)
   const userCommandHandler = new UserCommandHandler(userRepository, options.storageServiceUrl)
   userCommandHandler.registerTo(commandBus)
 
@@ -136,6 +138,7 @@ async function createApp(options: AppOptions) {
   app.post("/api/error", homeController.error)
   app.get("/api/error", homeController.error)
   app.post("/api/users", usersController.createUser(commandBus))
+  app.get("/api/users", usersController.getUsers(userView))
   app.post("/api/users/:id/photo", upload.any(), usersController.uploadPhoto(commandBus))
 
   app.use(errorHandler(logger))
