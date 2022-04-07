@@ -100,3 +100,32 @@ this command will run the migration before to dump the structure.
 ## Scheduled Job
 
 In docker-compose there is a scheduled task that call `/healtz` every 30 seconds. See [ofelia](https://github.com/mcuadros/ofelia) on github for more info.
+
+## Observability
+
+## Tracing
+ To see the application tracing we use Jaeger
+
+to run it:
+```
+ docker run -d --name jaeger \
+  -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 \
+  -p 5775:5775/udp \
+  -p 6831:6831/udp \
+  -p 6832:6832/udp \
+  -p 5778:5778 \
+  -p 16686:16686 \
+  -p 14250:14250 \
+  -p 14268:14268 \
+  -p 14269:14269 \
+  -p 9411:9411 \
+  jaegertracing/all-in-one:1.32
+```
+
+Start the application with 
+
+```
+npm run trace
+```
+
+Open <http://localhost:16686/> to see the Jaeger console
