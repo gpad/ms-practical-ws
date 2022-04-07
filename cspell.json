@@ -5,6 +5,7 @@
   "healthz",
   "microservices",
   "numbackends",
+  "opentelemetry",
   "pgmigrations",
   "prefetch",
   "Runtype"
