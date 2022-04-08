@@ -1,21 +1,18 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
 // Require dependencies
-const opentelemetry = require("@opentelemetry/sdk-node")
-const { getNodeAutoInstrumentations } = require("@opentelemetry/auto-instrumentations-node")
-const { JaegerExporter } = require("@opentelemetry/exporter-jaeger")
-// const { PrometheusExporter } = require("@opentelemetry/exporter-prometheus");
-const { Resource } = require("@opentelemetry/resources")
-const { SemanticResourceAttributes } = require("@opentelemetry/semantic-conventions")
+import { NodeSDK } from "@opentelemetry/sdk-node"
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node"
+import { JaegerExporter } from "@opentelemetry/exporter-jaeger"
+import { Resource } from "@opentelemetry/resources"
+import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions"
 
 const jaegerExporter = new JaegerExporter()
-// const prometheusExporter = new PrometheusExporter({ startServer: true })
 
-const sdk = new opentelemetry.NodeSDK({
+const sdk = new NodeSDK({
   resource: new Resource({
     [SemanticResourceAttributes.SERVICE_NAME]: "ms-template",
   }),
   traceExporter: jaegerExporter,
-  // metricExporter: prometheusExporter,
   instrumentations: [getNodeAutoInstrumentations()],
 })
 
