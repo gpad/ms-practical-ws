@@ -24,6 +24,8 @@ import { errorHandler } from "./infra/error_handler"
 import { validateEmailConfirmedPayload } from "./user/validation"
 import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
 import { UserView } from "./user/user_view"
+import { registerPromMetrics } from "./monitoring"
+
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 
@@ -131,6 +133,8 @@ async function createApp(options: AppOptions) {
   app.use(compression())
   app.use(express.json())
   app.use(express.urlencoded({ extended: true }))
+
+  app.get("/metrics", registerPromMetrics)
 
   // Routing
   app.get("/", homeController.index)

@@ -6,6 +6,7 @@ import { User } from "./user"
 import { UserRepository } from "./user_repository"
 import got from "got"
 import FormData from "form-data"
+import { userCreatedCounter } from "../monitoring"
 
 export class UserCommandHandler {
   constructor(private readonly repository: UserRepository, private readonly storageServiceUrl: string) {}
@@ -25,6 +26,7 @@ export class UserCommandHandler {
     logger.info(`Create user ${inspect(cmd)}`)
     const user = User.create(cmd.userId, cmd.data)
     await this.repository.save(user, cmd.domainTrace, logger)
+    userCreatedCounter.inc()
     return { success: true, payload: user }
   }
 
