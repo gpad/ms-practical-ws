@@ -2,7 +2,7 @@ import request from "supertest"
 import { Application } from "express"
 import { getTestApp, getTestOptions } from "../support/test_app"
 import { expect } from "chai"
-import { internet, name } from "faker"
+import { faker } from "@faker-js/faker"
 import { UserCreated, UserData } from "../../src/user/user"
 import { configureLogger, connectToDb } from "../../src/app"
 import { TestConsumer } from "../support/test_consumer"
@@ -58,9 +58,9 @@ describe("create user via API", async () => {
 
 function fakeCreateUserPayload(): CreateUserPayload {
   return {
-    firstName: name.firstName(),
-    lastName: name.lastName(),
+    firstName: faker.name.firstName(),
+    lastName: faker.name.lastName(),
     dateOfBirth: new Date().toISOString(),
-    email: internet.email(),
+    email: faker.internet.email(),
   }
 }
