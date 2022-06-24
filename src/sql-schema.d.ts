@@ -12,6 +12,17 @@ declare namespace SqlSchema {
     name: string
     run_on: Date
   }
+  export interface users {
+    id: string
+    email: string
+    date_of_birth: Date | null
+    confirmed_at: Date | null
+    first_name: string
+    last_name: string
+    version: number
+    updated_at: Date
+    created_at: Date
+  }
   export interface aggregate_events {
     id: string
     aggregate_id: string
@@ -23,16 +34,5 @@ declare namespace SqlSchema {
     public: boolean
     published: boolean
     payload: JSONValue
-  }
-  export interface users {
-    id: string
-    email: string
-    date_of_birth: Date | null
-    confirmed_at: Date | null
-    first_name: string
-    last_name: string
-    version: number
-    updated_at: Date
-    created_at: Date
   }
 }
