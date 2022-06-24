@@ -1,7 +1,7 @@
 import { Db } from "../../src/infra/db"
 import { startOutboxPatternMonitor } from "../../src/infra/outbox_pattern"
 import { TestConsumer } from "../support/test_consumer"
-import sql from "sql-template-tag"
+import sql, { RawValue } from "sql-template-tag"
 import { randomUUID } from "crypto"
 import { configureLogger, connectToDb } from "../../src/app"
 import { getTestOptions } from "../support/test_app"
@@ -70,7 +70,7 @@ function addUnpublishedEvent(db: Db, opts: Partial<SqlSchema.aggregate_events> =
     ${event.causation_id},
     ${event.correlation_id},
     ${event.event_name},
-    ${event.payload},
+    ${event.payload as RawValue},
     ${event.public},
     ${event.published}
   )`

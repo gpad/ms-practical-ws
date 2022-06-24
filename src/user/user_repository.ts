@@ -1,7 +1,7 @@
 import { EventBus } from "../infra/event_bus"
 import { DomainTrace } from "../infra/domain_trace"
 import { User, UserId } from "./user"
-import sql, { join } from "sql-template-tag"
+import sql, { join, RawValue } from "sql-template-tag"
 import { Db, Queryable } from "../infra/db"
 import { Logger } from "winston"
 import { inspect } from "util"
@@ -48,8 +48,8 @@ export class UserRepository {
           , ${user.data.email}
           , ${user.data.firstName}
           , ${user.data.lastName}
-          , ${user.data.dateOfBirth}
-          , ${user.data.confirmedAt}
+          , ${user.data.dateOfBirth as RawValue}
+          , ${user.data.confirmedAt as RawValue}
           )
           ON CONFLICT (id) DO UPDATE
           SET
