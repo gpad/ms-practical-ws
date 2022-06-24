@@ -38,21 +38,19 @@ describe("Upload photo", async () => {
     app = await getTestApp()
     const res = await connectToDb(opts.dbOptions, logger)
     db = res.db
+    repository = new UserRepository(db, fakeEventBus)
   })
 
-  beforeEach(async () => {
-    repository = new UserRepository(db, fakeEventBus)
-    await repository.save(user, domainTrace, logger)
-  })
+  beforeEach(() => db.query(sql`TRUNCATE users CASCADE`))
+  beforeEach(() => repository.save(user, domainTrace, logger))
   beforeEach(() => testConsumer.start())
   beforeEach((done) => writeFile(photo.path, photo.content, done))
 
   afterEach(() => testConsumer.disconnect())
   afterEach((done) => rm(photo.path, done))
-  afterEach(() => db.query(sql`TRUNCATE users CASCADE`))
 
   it("on existing user return a photo id", async () => {
-    nock(storageServiceUrl).post(`/api/photo/${user.id.toValue()}`).reply(200, { id: randomUUID() })
+    const scope = nock(storageServiceUrl).post(`/api/photo/${user.id.toValue()}`).reply(200, { id: randomUUID() })
 
     const res = await request(app)
       .post(`/api/users/${user.id.toValue()}/photo`)
@@ -62,11 +60,11 @@ describe("Upload photo", async () => {
       .expect(200)
 
     expect(res.body).eql({ status: "ok" })
+    expect(scope.isDone()).true
   })
 
-  it.skip("on unknown user return 400", async () => {
+  it("on unknown user return 400", async () => {
     const unknownUserId = randomUUID()
-    nock(storageServiceUrl).post(`/api/photo/${unknownUserId}`).reply(200, { id: randomUUID() })
 
     const res = await request(app)
       .post(`/api/users/${unknownUserId}/photo`)
@@ -75,6 +73,6 @@ describe("Upload photo", async () => {
       .attach("photo", photo.path)
       .expect(400)
 
-    expect(res.body).eql({ errors: [`user ${unknownUserId} is unknown`] })
+    expect(res.body).eql({ errors: [`Unable to find user ${unknownUserId} for upload photo`] })
   })
 })

@@ -2,7 +2,7 @@ import { inspect } from "util"
 import { Logger } from "winston"
 import { CommandBus, CommandResult } from "../infra/local_command_bus"
 import { ConfirmEmailCommand, CreateUserCommand, UploadPhotoCommand } from "./create_user_command"
-import { User } from "./user"
+import { User, UserId } from "./user"
 import { UserRepository } from "./user_repository"
 import got from "got"
 import FormData from "form-data"
@@ -39,6 +39,9 @@ export class UserCommandHandler {
   }
 
   private async uploadPhoto(cmd: UploadPhotoCommand, logger: Logger): Promise<CommandResult<{ photoId: string }>> {
+    if (!(await this.repository.findById(cmd.userId))) {
+      return { success: false, errors: [`Unable to find user ${cmd.userId.toValue()} for upload photo`] }
+    }
     const url = `${this.storageServiceUrl}/api/photo/${cmd.userId.toValue()}`
     logger.info(`Uploading photo to ${url} for cmd: ${inspect(cmd)}`)
     const formData = new FormData()
