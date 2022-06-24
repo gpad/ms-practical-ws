@@ -1,4 +1,4 @@
-import { internet, name } from "faker"
+import { faker } from "@faker-js/faker"
 import { toUserCreatedPayload, User, UserCreatedPayload, UserData, UserId } from "../../src/user/user"
 
 export function createUser() {
@@ -7,10 +7,10 @@ export function createUser() {
 
 export function createUserData(): UserData {
   return {
-    firstName: name.firstName(),
-    lastName: name.lastName(),
+    firstName: faker.name.firstName(),
+    lastName: faker.name.lastName(),
     dateOfBirth: new Date(2006, 6, 6),
-    email: internet.email(),
+    email: faker.internet.email(),
     confirmedAt: null,
   }
 }

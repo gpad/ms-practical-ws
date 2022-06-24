@@ -13,7 +13,7 @@ import path from "path"
 import { tmpdir } from "os"
 import { rm, writeFile } from "fs"
 import { Application } from "express"
-import { address } from "faker"
+import { faker } from "@faker-js/faker"
 import { expect } from "chai"
 import sql from "sql-template-tag"
 import nock from "nock"
@@ -56,8 +56,8 @@ describe("Upload photo", async () => {
 
     const res = await request(app)
       .post(`/api/users/${user.id.toValue()}/photo`)
-      .field("longitude", address.longitude())
-      .field("latitude", address.latitude())
+      .field("longitude", faker.address.longitude())
+      .field("latitude", faker.address.latitude())
       .attach("photo", photo.path)
       .expect(200)
 
@@ -70,8 +70,8 @@ describe("Upload photo", async () => {
 
     const res = await request(app)
       .post(`/api/users/${unknownUserId}/photo`)
-      .field("longitude", address.longitude())
-      .field("latitude", address.latitude())
+      .field("longitude", faker.address.longitude())
+      .field("latitude", faker.address.latitude())
       .attach("photo", photo.path)
       .expect(400)
 

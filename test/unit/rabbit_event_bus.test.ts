@@ -10,7 +10,7 @@ import { inspect } from "util"
 import { validateEmailConfirmedPayload, validateUserCreatedPayload } from "../../src/user/validation"
 import { connect } from "amqplib"
 import { wait } from "../../src/infra/wait"
-import { internet } from "faker"
+import { faker } from "@faker-js/faker"
 
 describe("RabbitEventBus", () => {
   const opts = getTestOptions()
@@ -45,7 +45,7 @@ describe("RabbitEventBus", () => {
     expect(queueInfo.messageCount).eql(0)
   })
 
-  it("when handler return nack then nack message and DONT reenqueue it", async () => {
+  it("when handler return nack then nack message and DON'T reenqueue it", async () => {
     const events: EmailConfirmed[] = []
     rabbitServiceBus.register(EmailConfirmed.EventName, async (e: EmailConfirmed) => {
       events.push(e)
@@ -55,7 +55,7 @@ describe("RabbitEventBus", () => {
       [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],
       opts.rabbitOptions.tmpQueue
     )
-    const event = EmailConfirmed.create({ userId: randomUUID(), email: internet.email() })
+    const event = EmailConfirmed.create({ userId: randomUUID(), email: faker.internet.email() })
 
     await rabbitServiceBus.emit(event)
 
