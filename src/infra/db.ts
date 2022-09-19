@@ -1,10 +1,10 @@
-import { ClientBase, Pool } from "pg"
+import { ClientBase, Pool, QueryResultRow } from "pg"
 import { Sql } from "sql-template-tag"
 
 export class Queryable {
   constructor(private readonly client: ClientBase) {}
 
-  async query<T>(q: Sql): Promise<T[]> {
+  async query<T extends QueryResultRow>(q: Sql): Promise<T[]> {
     const res = await this.client.query<T>(q)
     return res.rows
   }
@@ -13,7 +13,7 @@ export class Queryable {
 export class Db {
   constructor(private readonly pool: Pool) {}
 
-  async query<T>(q: Sql): Promise<T[]> {
+  async query<T extends QueryResultRow>(q: Sql): Promise<T[]> {
     const res = await this.pool.query<T>(q)
     return res.rows
   }
