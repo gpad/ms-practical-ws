@@ -11,8 +11,39 @@ import { validateEmailConfirmedPayload, validateUserCreatedPayload } from "../..
 import { connect } from "amqplib"
 import { wait } from "../../src/infra/wait"
 import { faker } from "@faker-js/faker"
+import { AggregateVersion, DomainEvent, EnrichOptions } from "../../src/infra/aggregate"
+import { EventId } from "../../src/infra/ids"
+import { DomainTrace } from "../../src/infra/domain_trace"
+import { TestId } from "../support/test_id"
+import { range } from "lodash"
 
-describe("RabbitEventBus", () => {
+class TestDomainEvent extends DomainEvent {
+  static readonly EventName = "test_domain_event"
+
+  static create(): TestDomainEvent {
+    const eventId = EventId.new()
+    return new TestDomainEvent(eventId, { id: randomUUID() }, AggregateVersion.Empty, DomainTrace.create(eventId))
+  }
+
+  constructor(
+    id: EventId,
+    private readonly payload: { id: string },
+    aggregateVersion: AggregateVersion,
+    domainTrace: DomainTrace
+  ) {
+    super(id, TestId.from(payload.id), TestDomainEvent.EventName, aggregateVersion, domainTrace)
+  }
+
+  enrich({ trace, version }: EnrichOptions): TestDomainEvent {
+    return new TestDomainEvent(this.id, this.payload, version, trace)
+  }
+
+  toPayload(): { id: string } {
+    return this.payload
+  }
+}
+
+describe("RabbitServiceBus", () => {
   const opts = getTestOptions()
   const logger = configureLogger(opts.logger)
   const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", 50, logger)
@@ -133,6 +164,116 @@ describe("RabbitEventBus", () => {
         ),
       Error
     )
+  })
+
+  describe("local events", () => {
+    it("are dispatched as public event", async () => {
+      const events: TestDomainEvent[] = []
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        events.push(e)
+        return { ack: true, payload: "test" }
+      })
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+
+      await eventually(() => expect(events.map((e) => e.eventName)).eql([TestDomainEvent.EventName]))
+    })
+
+    it("can be emitted in batch", async () => {
+      const events: TestDomainEvent[] = []
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        events.push(e)
+        return { ack: true, payload: "test" }
+      })
+
+      await rabbitServiceBus.emits(range(50).map(() => TestDomainEvent.create()))
+
+      await eventually(() => expect(events.map((e) => e.eventName)).eql(Array(50).fill(TestDomainEvent.EventName)))
+    })
+
+    it("are executed 3 times if not acknowledged", async () => {
+      const events: TestDomainEvent[] = []
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        events.push(e)
+        return { ack: false }
+      })
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+
+      await eventually(() => {
+        expect(events).lengthOf(3)
+        expect(events.map((e) => e.eventName)).eql(Array(3).fill(TestDomainEvent.EventName))
+      })
+    })
+
+    it("are executed 3 times if throw exception continuously", async () => {
+      const events: TestDomainEvent[] = []
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        events.push(e)
+        throw new Error("test")
+      })
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+
+      await eventually(() => {
+        expect(events).lengthOf(3)
+        expect(events.map((e) => e.eventName)).eql(Array(3).fill(TestDomainEvent.EventName))
+      })
+    })
+
+    it("are managed by outbox pattern")
+
+    it("are executed asynchronous", async () => {
+      const events: TestDomainEvent[] = []
+      let exit = false
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        while (!exit) {
+          events.push(e)
+          await wait(0)
+        }
+        return { ack: true }
+      })
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+
+      await eventually(() => {
+        expect(events).lengthOf.above(1)
+        expect(events.every((e) => e.eventName === TestDomainEvent.EventName)).true
+      })
+      exit = true
+    })
+
+    it("are executed asynchronous and it's possible wait the execution", async () => {
+      const events: TestDomainEvent[] = []
+      let exit = false
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        while (!exit) {
+          events.push(e)
+          await wait(0)
+        }
+        return { ack: true }
+      })
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+      await eventually(() => expect(events).lengthOf.above(1))
+      exit = true
+
+      await rabbitServiceBus.waitPendingExecutions()
+    })
+
+    it("execute multiple local events in parallel", async () => {
+      const events: TestDomainEvent[] = []
+      const howManyEvents = 1000
+      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
+        events.push(e)
+        await wait(1000)
+        return { ack: true }
+      })
+
+      await Promise.all(range(howManyEvents).map(() => rabbitServiceBus.emit(TestDomainEvent.create())))
+      await eventually(() => expect(events).lengthOf(howManyEvents))
+      await rabbitServiceBus.waitPendingExecutions()
+    })
   })
 })
 
