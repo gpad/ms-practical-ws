@@ -2,14 +2,11 @@ import { expect } from "chai"
 import { configureLogger } from "../../src/app"
 import { Command } from "../../src/infra/command"
 import { DomainTrace } from "../../src/infra/domain_trace"
-import { AggregateId, CommandId, EventId } from "../../src/infra/ids"
+import { CommandId, EventId } from "../../src/infra/ids"
 import { CommandBus, LocalCommandBus } from "../../src/infra/local_command_bus"
 import { expectThrowsAsync } from "../support/expect_util"
 import { getTestOptions } from "../support/test_app"
-
-class TestId extends AggregateId<"test_id"> {
-  readonly type = "test_id"
-}
+import { TestId } from "../support/test_id"
 
 class TestCommand extends Command {
   static CommandName = "test_command"
