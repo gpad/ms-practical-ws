@@ -1,14 +1,31 @@
 import { AggregateVersion, DomainEvent, PublicDomainEvent } from "./aggregate"
 import { Rabbit, RabbitMessage } from "./rabbit"
 import { EventBus, EventHandler, toMessage } from "./event_bus"
-import { snakeCase } from "lodash"
+import { isEmpty, snakeCase } from "lodash"
 import { Logger } from "winston"
 import { ConsumeMessage } from "amqplib"
 import { CausationId, CorrelationId, EventId } from "./ids"
 import { DomainTrace } from "./domain_trace"
 import { inspect } from "util"
-import { elapsedFrom } from "./wait"
+import { elapsedFrom, wait } from "./wait"
 import { ValidateFunction } from "ajv"
+
+function partitionPublicEvents<T extends DomainEvent>(events: T[]): [PublicDomainEvent[], DomainEvent[]] {
+  function isPublicDomainEvent(e: unknown): e is PublicDomainEvent {
+    return e instanceof PublicDomainEvent
+  }
+  const publicEvents: PublicDomainEvent[] = []
+  const domainEvents: DomainEvent[] = []
+  for (const event of events) {
+    if (isPublicDomainEvent(event)) {
+      publicEvents.push(event)
+    } else {
+      domainEvents.push(event)
+    }
+  }
+
+  return [publicEvents, domainEvents]
+}
 
 type PublicDomainEventCtor<T, U extends PublicDomainEvent> = {
   new (eventId: EventId, payload: T, aggregateVersion: AggregateVersion, domainTrace: DomainTrace): U
@@ -60,6 +77,8 @@ export function createEventBuilderFor<T, U extends PublicDomainEvent>(
 
 export class RabbitServiceBus implements EventBus {
   private handlers: { [key: string]: EventHandler<never> } = {}
+  private pendingLocalEvents: DomainEvent[] = []
+  private executingLocalEvents = false
 
   constructor(private readonly rabbit: Rabbit, private msName: string, private logger: Logger) {}
 
@@ -72,6 +91,35 @@ export class RabbitServiceBus implements EventBus {
       throw new Error(`Some builders doesn't have an handler, builders: ${eventNames}, handlers: ${handlerNames}`)
     }
     await Promise.all(eventNames.map((eventName, index) => this.createConsumer(eventName, builders[index], temporary)))
+  }
+
+  emit<T extends DomainEvent>(event: T): Promise<void> {
+    if (event instanceof PublicDomainEvent) {
+      return this.rabbit.publish(toMessage(event))
+    }
+
+    this.pendingLocalEvents.push(event)
+    setImmediate(() => this.executePendingEvents())
+    return Promise.resolve()
+  }
+
+  emits<T extends DomainEvent>(events: T[]): Promise<void> {
+    const [publicEvents, localEvents] = partitionPublicEvents(events)
+    this.pendingLocalEvents.push(...localEvents)
+    setImmediate(() => this.executePendingEvents())
+    return this.rabbit.publishAll(publicEvents.map(toMessage))
+  }
+
+  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void {
+    if (this.alreadyRegister(eventName)) throw new Error(`${eventName} is already registered!`)
+    this.handlers[eventName] = handler
+  }
+
+  async waitPendingExecutions() {
+    if (isEmpty(this.pendingLocalEvents)) return
+    while (!isEmpty(this.pendingLocalEvents)) {
+      await wait(0)
+    }
   }
 
   private createConsumer<T extends PublicDomainEvent>(
@@ -103,17 +151,7 @@ export class RabbitServiceBus implements EventBus {
       const receivedMessage: ReceivedMessage = rabbitMessage
       // const event = createEventFrom<T>(msg)
       const event = builder.createFromMessage(receivedMessage)
-      const logger = this.logger.child({
-        domainTrace: {
-          correlationId: event.domainTrace.correlationId.toValue(),
-          causationId: event.domainTrace.causationId.toValue(),
-          eventId: event.id.toValue(),
-          eventName: event.eventName,
-          aggregateId: event.aggregateId,
-          aggregateVersion: event.aggregateVersion.version,
-          aggregateVersionIndex: event.aggregateVersion.index,
-        },
-      })
+      const logger = this.createLoggerFrom<T>(event)
       const ret = await handler(event, logger)
       logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
 
@@ -130,33 +168,59 @@ export class RabbitServiceBus implements EventBus {
     }
   }
 
+  private createLoggerFrom<T extends DomainEvent>(event: T) {
+    return this.logger.child({
+      domainTrace: {
+        correlationId: event.domainTrace.correlationId.toValue(),
+        causationId: event.domainTrace.causationId.toValue(),
+        eventId: event.id.toValue(),
+        eventName: event.eventName,
+        aggregateId: event.aggregateId,
+        aggregateVersion: event.aggregateVersion.version,
+        aggregateVersionIndex: event.aggregateVersion.index,
+      },
+    })
+  }
+
   private createQueueNameFrom(eventName: string, temporary: boolean): string {
     return `${snakeCase(this.msName)}_${snakeCase(eventName)}${temporary ? "_tmp" : ""}`
   }
 
-  emit<T extends DomainEvent>(event: T): Promise<void> {
-    if (event instanceof PublicDomainEvent) {
-      return this.rabbit.publish(toMessage(event))
-    }
-    return Promise.reject()
-  }
-
-  emits<T extends DomainEvent>(events: T[]): Promise<void> {
-    function isPublicDomainEvent(e: unknown): e is PublicDomainEvent {
-      return e instanceof PublicDomainEvent
-    }
-    const eventsToPublish = events
-      .filter((e) => isPublicDomainEvent(e))
-      .map((e) => toMessage(e as unknown as PublicDomainEvent))
-    return this.rabbit.publishAll(eventsToPublish)
-  }
-
-  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void {
-    if (this.alreadyRegister(eventName)) throw new Error(`${eventName} is already registered!`)
-    this.handlers[eventName] = handler
-  }
-
   private alreadyRegister(commandName: string) {
     return !!this.handlers[commandName]
+  }
+
+  private async executePendingEvents(): Promise<void> {
+    if (this.executingLocalEvents) {
+      return
+    }
+    this.executingLocalEvents = true
+    while (this.pendingLocalEvents.length) {
+      const events = this.pendingLocalEvents.splice(0)
+      await Promise.all(events.map((e) => this.dispatchLocalEvent(e)))
+    }
+    this.executingLocalEvents = false
+  }
+
+  private async dispatchLocalEvent<T extends DomainEvent>(event: T) {
+    let count = 0
+    const start = Date.now()
+    const logger = this.createLoggerFrom<T>(event)
+    const handler = this.handlers[event.eventName] as EventHandler<T>
+    while (count < 3) {
+      try {
+        const ret = await handler(event, logger)
+        logger.info(`Executed event: ${inspect(event)} in ${elapsedFrom(start)} ms, ret: ${inspect(ret)}`)
+
+        if (ret.ack) {
+          logger.info(`ACK local event: ${inspect(event)}`)
+          return
+        }
+        logger.warn(`NACK local event: ${inspect(event)}`)
+      } catch (error) {
+        logger.warn(`NACK local event: ${inspect(event)} - ${inspect(error)}`, error)
+      }
+      count += 1
+    }
   }
 }

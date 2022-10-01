@@ -39,6 +39,9 @@ export class UserCommandHandler {
   }
 
   private async uploadPhoto(cmd: UploadPhotoCommand, logger: Logger): Promise<CommandResult<{ photoId: string }>> {
+    if (!(await this.repository.findById(cmd.userId))) {
+      return { success: false, errors: [`Unable to find user ${cmd.userId.toValue()} for upload photo`] }
+    }
     const url = `${this.storageServiceUrl}/api/photo/${cmd.userId.toValue()}`
     logger.info(`Uploading photo to ${url} for cmd: ${inspect(cmd)}`)
     const formData = new FormData()
