@@ -1,5 +1,5 @@
 import { expect } from "chai"
-import { internet, name } from "faker"
+import { faker } from "@faker-js/faker"
 import { configureLogger, connectToDb } from "../../src/app"
 import { Db } from "../../src/infra/db"
 import { DomainTrace } from "../../src/infra/domain_trace"
@@ -33,10 +33,10 @@ describe("UserRepository", () => {
 
   it("save and load user", async () => {
     const user = User.create(UserId.new(), {
-      firstName: name.firstName(),
-      lastName: name.lastName(),
+      firstName: faker.name.firstName(),
+      lastName: faker.name.lastName(),
       dateOfBirth: new Date(2006, 6, 6),
-      email: internet.email(),
+      email: faker.internet.email(),
       confirmedAt: null,
     })
     const repository = new UserRepository(db, fakeEventBus)
@@ -50,10 +50,10 @@ describe("UserRepository", () => {
 
   it("save a new user and all events are emitted", async () => {
     const user = User.create(UserId.new(), {
-      firstName: name.firstName(),
-      lastName: name.lastName(),
+      firstName: faker.name.firstName(),
+      lastName: faker.name.lastName(),
       dateOfBirth: new Date(2006, 6, 6),
-      email: internet.email(),
+      email: faker.internet.email(),
       confirmedAt: null,
     })
     const repository = new UserRepository(db, fakeEventBus)
@@ -69,10 +69,10 @@ describe("UserRepository", () => {
   it("update user", async () => {
     const user = await createUserInDb()
     user.updateData({
-      firstName: name.firstName(),
-      lastName: name.lastName(),
+      firstName: faker.name.firstName(),
+      lastName: faker.name.lastName(),
       dateOfBirth: new Date(2007, 7, 7),
-      email: internet.email(),
+      email: faker.internet.email(),
       confirmedAt: new Date(),
     })
     const repository = new UserRepository(db, fakeEventBus)

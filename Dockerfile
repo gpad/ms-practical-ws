@@ -1,7 +1,7 @@
 #
 # Build stage
 #
-FROM node:16.13-alpine AS build
+FROM node:gallium-alpine AS build
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm run build
 #
 # Pull production dependencies only
 #
-FROM node:16.13-alpine AS deps
+FROM node:gallium-alpine AS deps
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN npm ci --production
 #
 # Final image
 #
-FROM node:16.13-alpine AS app
+FROM node:gallium-alpine AS app
 
 WORKDIR /app
 
