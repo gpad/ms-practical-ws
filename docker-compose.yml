@@ -65,6 +65,10 @@ services:
     volumes:
       - ${PWD}/prometheus.yml:/etc/prometheus/prometheus.yml
     extra_hosts:
-      - "host.docker.internal:host-gateway"
-    
-  
+      - "host.docker.internal:host-gateway" 
+
+  grafana:
+    image: grafana/grafana:latest
+    user: root
+    ports:
+      - 3333:3000
