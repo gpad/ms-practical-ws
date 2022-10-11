@@ -104,12 +104,24 @@ In docker-compose there is a scheduled task that call `/healtz` every 30 seconds
 ## Observability
 
 ## Tracing
- To see the application tracing we use Jaeger: <https://www.jaegertracing.io/>
 
-Start the application with 
+To see the application tracing we use Jaeger: <https://www.jaegertracing.io/>
+
+Start the application with
 
 ```
 npm run trace
 ```
 
 Open <http://localhost:16686/> to see the Jaeger console
+
+## Metrics
+
+You can see the metrics you are exporting going here: <http://localhost:3000/metrics>. You can see the metrics on Prometheus here: <http://localhost:9090/metrics>. At the end you can see the metrics on Grafana going here: <http://localhost:3333/>. Credentials: `admin admin`.
+
+Some queries could be:
+
+```
+increase(created_users[10m])
+created_users
+```
