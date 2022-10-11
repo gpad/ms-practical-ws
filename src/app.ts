@@ -25,6 +25,7 @@ import { validateEmailConfirmedPayload } from "./user/validation"
 import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
 import { UserView } from "./user/user_view"
 import { registerPromMetrics } from "./monitoring"
+import { trace } from "@opentelemetry/api"
 
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
@@ -103,14 +104,15 @@ export async function connectToRabbit({ uri, tmpQueue }: RabbitOptions, msName: 
 }
 
 async function createApp(options: AppOptions) {
+  const msName = "ms-template"
   console.log("Running in ", options.env)
   const app = express()
   const logger = configureLogger(options.logger)
   await migrate(options.dbOptions)
   const { db } = await connectToDb(options.dbOptions, logger)
-  const rabbit = await connectToRabbit(options.rabbitOptions, "ms-template", logger)
-  const commandBus = new LocalCommandBus(logger)
-  const eventBus = new RabbitServiceBus(rabbit, "ms-template", logger)
+  const rabbit = await connectToRabbit(options.rabbitOptions, msName, logger)
+  const commandBus = new LocalCommandBus(logger, trace.getTracer(msName))
+  const eventBus = new RabbitServiceBus(rabbit, msName, logger)
 
   const userRepository = new UserRepository(db, eventBus)
   const userView = new UserView(db)

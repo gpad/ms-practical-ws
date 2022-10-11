@@ -5,11 +5,11 @@
   "scripts": {
     "test": "mocha test",
     "build": "tsc",
-    "start": "node -r source-map-support/register dist/server.js",
+    "start": "node -r './dist/tracing.js' -r source-map-support/register dist/server.js",
     "debug": "npm run build && npm run watch-debug",
     "trace": "node  -r './dist/tracing.js' -r source-map-support/register dist/server.js",
     "watch-debug": "concurrently -k -p \"[{name}]\" -n \"TypeScript,Node\" -c \"cyan.bold,green.bold\" \"npm run watch-ts\" \"npm run serve-debug\"",
-    "serve-debug": "nodemon --inspect dist/server.js",
+    "serve-debug": "nodemon --inspect -r './dist/tracing.js' dist/server.js",
     "watch-ts": "tsc -w",
     "check": "npm run check-ts && npm run check-lint && npm run check-format && npm run check-spell",
     "check-ts": "tsc --noEmit && tsc --project test/tsconfig.json --noEmit",
