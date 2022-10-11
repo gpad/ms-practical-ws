@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api"
 import { expect } from "chai"
 import { configureLogger } from "../../src/app"
 import { Command } from "../../src/infra/command"
@@ -23,7 +24,7 @@ describe("LocalCommandBus", () => {
   let commandBus: CommandBus
 
   beforeEach(() => {
-    commandBus = new LocalCommandBus(logger)
+    commandBus = new LocalCommandBus(logger, trace.getTracer("msName-test"))
   })
 
   it("raise exception if handler is already registered", () => {
