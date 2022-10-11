@@ -29,18 +29,11 @@ export const createUser = function (commandBus: CommandBus) {
 }
 
 export function getUsers(userView: UserView) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const users = await userView.findAll()
-      const data = users.map((u) => toUserPayload(u))
+      const data = users.map(toUserPayload)
       const resp = { data }
-      if (!validateUsersPayloadBodySchema(resp)) {
-        req.logger.error(
-          `Unable to return correct schema for UsersPayload: ${inspect(resp)} - errors: ${inspect(
-            validateUsersPayloadBodySchema.errors
-          )}`
-        )
-      }
       res.status(200).json(resp)
     } catch (e) {
       next(e as Error)
