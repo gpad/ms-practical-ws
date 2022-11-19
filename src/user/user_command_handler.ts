@@ -7,9 +7,6 @@ import { UserRepository } from "./user_repository"
 import got from "got"
 import FormData from "form-data"
 import { userCreatedCounter } from "../monitoring"
-import { wait } from "../infra/wait"
-import { trace } from "@opentelemetry/api"
-import { Command } from "../infra/command"
 
 export class UserCommandHandler {
   constructor(private readonly repository: UserRepository, private readonly storageServiceUrl: string) {}
@@ -28,22 +25,9 @@ export class UserCommandHandler {
   private async createCommand(cmd: CreateUserCommand, logger: Logger): Promise<CommandResult<User>> {
     logger.info(`Create user ${inspect(cmd)}`)
     const user = User.create(cmd.userId, cmd.data)
-    await this.doHeavyStuffTraced(cmd)
     await this.repository.save(user, cmd.domainTrace, logger)
     userCreatedCounter.inc()
     return { success: true, payload: user }
-  }
-
-  // private async doHeavyStuff(_cmd: Command) {
-  //   await wait(500)
-  // }
-
-  private async doHeavyStuffTraced(_cmd: Command) {
-    const doHeavyStuffTrace = trace.getTracer("ms-template")
-    await doHeavyStuffTrace.startActiveSpan("doHeavyStuff", async (span) => {
-      await wait(500)
-      span.end()
-    })
   }
 
   private async confirmEmail(cmd: ConfirmEmailCommand, logger: Logger): Promise<CommandResult<User>> {
