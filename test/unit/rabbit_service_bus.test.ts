@@ -12,14 +12,7 @@ import { connect } from "amqplib"
 import { wait } from "../../src/infra/wait"
 import { faker } from "@faker-js/faker"
 import { range } from "lodash"
-import {
-  createFakePublicAggregateEvent,
-  TestDomainEvent,
-  TestPublicDomainEvent,
-  validateTestPublicDomainEventPayload,
-} from "../support/fake_data"
-import { FromDbDomainEvent, FromDbPublicDomainEvent } from "../../src/infra/outbox_pattern"
-import { DomainEvent } from "../../src/infra/aggregate"
+import { TestDomainEvent } from "../support/fake_data"
 
 describe("RabbitServiceBus", () => {
   const opts = getTestOptions()
@@ -295,46 +288,7 @@ describe("RabbitServiceBus", () => {
       })
     })
 
-    it("FromDB events can impersonate other events", async () => {
-      const events: DomainEvent[] = []
-      rabbitServiceBus.register(TestDomainEvent.EventName, async (e: TestDomainEvent) => {
-        events.push(e)
-        return { ack: true }
-      })
-      rabbitServiceBus.register(TestPublicDomainEvent.EventName, async (e: TestPublicDomainEvent) => {
-        events.push(e)
-        return { ack: true }
-      })
-      await rabbitServiceBus.start(
-        [createEventBuilderFor(validateTestPublicDomainEventPayload, TestPublicDomainEvent)],
-        true
-      )
-
-      await rabbitServiceBus.emit(
-        FromDbDomainEvent.createFrom(
-          createFakePublicAggregateEvent({
-            public: false,
-            event_name: TestDomainEvent.EventName,
-            payload: { id: randomUUID() },
-          })
-        )
-      )
-      await rabbitServiceBus.emit(
-        FromDbPublicDomainEvent.createFrom(
-          createFakePublicAggregateEvent({
-            public: true,
-            event_name: TestPublicDomainEvent.EventName,
-            payload: { id: randomUUID() },
-          })
-        )
-      )
-
-      await eventually(
-        () =>
-          expect(events.map((e) => e.eventName)).members([TestDomainEvent.EventName, TestPublicDomainEvent.EventName]),
-        5000
-      )
-    }).timeout(10000)
+    it("are managed by outbox pattern")
 
     it("are executed asynchronous", async () => {
       const events: TestDomainEvent[] = []

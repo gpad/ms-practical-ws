@@ -1,11 +1,9 @@
 import { faker } from "@faker-js/faker"
-import { JSONSchemaType } from "ajv"
 import { randomUUID } from "node:crypto"
 import { AggregateVersion, DomainEvent, EnrichOptions, PublicDomainEvent } from "../../src/infra/aggregate"
 import { DomainTrace } from "../../src/infra/domain_trace"
 import { EventId } from "../../src/infra/ids"
 import { toUserCreatedPayload, User, UserCreatedPayload, UserData, UserId } from "../../src/user/user"
-import { ajv } from "../../src/user/validation"
 import { TestId } from "./test_id"
 
 export function createUser() {
@@ -26,9 +24,7 @@ export function createUserCreatedPayload(): UserCreatedPayload {
   return toUserCreatedPayload(UserId.new(), createUserData())
 }
 
-export function createFakePublicAggregateEvent(
-  opts: Partial<SqlSchema.aggregate_events> = {}
-): SqlSchema.aggregate_events {
+export function createFakeAggregateEvent(opts: Partial<SqlSchema.aggregate_events>): SqlSchema.aggregate_events {
   return {
     id: randomUUID(),
     aggregate_id: randomUUID(),
@@ -70,21 +66,6 @@ export class TestDomainEvent extends DomainEvent {
   }
 }
 
-interface TestPublicDomainEventPayload {
-  id: string
-}
-
-const TestPublicDomainEventPayloadSchema: JSONSchemaType<TestPublicDomainEventPayload> = {
-  type: "object",
-  properties: { id: { type: "string", format: "uuid" } },
-  required: ["id"],
-  additionalProperties: false,
-}
-
-export const validateTestPublicDomainEventPayload = ajv.compile<TestPublicDomainEventPayload>(
-  TestPublicDomainEventPayloadSchema
-)
-
 export class TestPublicDomainEvent extends PublicDomainEvent {
   static readonly EventName = "test_public_domain_event"
 
@@ -95,7 +76,7 @@ export class TestPublicDomainEvent extends PublicDomainEvent {
 
   constructor(
     id: EventId,
-    private readonly payload: TestPublicDomainEventPayload,
+    private readonly payload: { id: string },
     aggregateVersion: AggregateVersion,
     domainTrace: DomainTrace
   ) {
@@ -106,7 +87,7 @@ export class TestPublicDomainEvent extends PublicDomainEvent {
     return new TestPublicDomainEvent(this.id, this.payload, version, trace)
   }
 
-  toPayload(): TestPublicDomainEventPayload {
+  toPayload(): { id: string } {
     return this.payload
   }
 }

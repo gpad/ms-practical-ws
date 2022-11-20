@@ -45,7 +45,7 @@ export async function saveEvents(
     ${e.domainTrace.correlationId.toValue()},
     ${e.public},
     false,
-    ${e.toPayload() as {}}
+    ${e.toPayload() as SqlSchema.JSONObject}
   )`
   )
   await Promise.all(queries.map((q) => tr.query(q)))
