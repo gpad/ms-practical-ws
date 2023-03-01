@@ -1,7 +1,7 @@
 import compression from "compression"
-import express, { Application } from "express"
+import express, { Application, json, urlencoded } from "express"
 import { Logger, createLogger, format, transports } from "winston"
-import morgan from "morgan"
+import morgan, { token } from "morgan"
 import { IncomingMessage } from "http"
 import { Pool } from "pg"
 import { AppOptions, DbOptions, RabbitOptions } from "./env"
@@ -19,7 +19,7 @@ import { UserRepository } from "./user/user_repository"
 import { createEventBuilderFor, RabbitServiceBus } from "./infra/rabbit_service_bus"
 import { EmailConfirmed } from "./user/user"
 import { inspect } from "util"
-import multer from "multer"
+import multer, { memoryStorage } from "multer"
 import { errorHandler } from "./infra/error_handler"
 import { validateEmailConfirmedPayload } from "./user/validation"
 import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
@@ -27,11 +27,11 @@ import { UserView } from "./user/user_view"
 import { registerPromMetrics } from "./monitoring"
 import { trace } from "@opentelemetry/api"
 
-const storage = multer.memoryStorage()
+const storage = memoryStorage()
 const upload = multer({ storage: storage })
 
 function configureMorgan(app: Application, logger: Logger) {
-  morgan.token<IncomingMessage & { id: string }>("id", (req) => req.id)
+  token<IncomingMessage & { id: string }>("id", (req) => req.id)
   const f =
     ':id :remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" status: :status content-length: :res[content-length] ":referrer" ":user-agent"'
   app.use(morgan(f, { skip: (_req, res) => res.statusCode >= 400, stream: { write: (m) => logger.info(m) } }))
@@ -133,8 +133,8 @@ async function createApp(options: AppOptions) {
   // Express configuration
   app.set("port", options.port)
   app.use(compression())
-  app.use(express.json())
-  app.use(express.urlencoded({ extended: true }))
+  app.use(json())
+  app.use(urlencoded({ extended: true }))
 
   app.get("/metrics", registerPromMetrics)
 
