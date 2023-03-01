@@ -32,7 +32,7 @@
   "homepage": "https://gitlab.com/coders51/ms-training-template/ms-template#readme",
   "devDependencies": {
     "@faker-js/faker": "^7.5.0",
-    "@tsconfig/node18": "^1.0.1",
+    "@tsconfig/node-lts": "^18.12.1",
     "@types/amqplib": "^0.10.1",
     "@types/chai": "^4.3.3",
     "@types/compression": "^1.7.2",

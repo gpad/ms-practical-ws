@@ -2,7 +2,7 @@ stages:
   - test
   - deploy
 
-image: node:lts-gallium
+image: node:lts-hydrogen
 cache:
   paths:
     - node_modules
