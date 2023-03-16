@@ -17,6 +17,7 @@ export type AppOptions = {
   dbOptions: DbOptions
   rabbitOptions: RabbitOptions
   storageServiceUrl: string
+  instanceId: string
 }
 
 export function getAppOptions(): AppOptions {
@@ -39,5 +40,6 @@ export function getAppOptions(): AppOptions {
       tmpQueue: env === "test",
     },
     storageServiceUrl: process.env.STORAGE_SERVICE_URL || "http://localhost:4001",
+    instanceId: process.env.INSTANCE_ID || "test",
   }
 }
