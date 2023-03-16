@@ -11,7 +11,7 @@ describe("outbox patter", () => {
   let db: Db
   const opts = getTestOptions()
   const logger = configureLogger(opts.logger)
-  const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", 50, logger)
+  const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", "test", 50, logger)
   const testConsumer = new TestConsumer(opts.rabbitOptions.uri, logger)
 
   beforeEach(async () => {

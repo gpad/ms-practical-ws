@@ -92,9 +92,14 @@ export async function connectToDb({ host, user, pwd, db }: DbOptions, logger: Lo
   }
 }
 
-export async function connectToRabbit({ uri, tmpQueue }: RabbitOptions, msName: string, logger: Logger) {
+export async function connectToRabbit(
+  { uri, tmpQueue }: RabbitOptions,
+  msName: string,
+  instanceId: string,
+  logger: Logger
+) {
   try {
-    const rabbit = new Rabbit(uri, msName, 50, logger)
+    const rabbit = new Rabbit(uri, msName, `${msName}_${instanceId}`, 50, logger)
     await rabbit.connect({ temporary: tmpQueue })
     return rabbit
   } catch (error) {
@@ -110,7 +115,7 @@ async function createApp(options: AppOptions) {
   const logger = configureLogger(options.logger)
   await migrate(options.dbOptions)
   const { db } = await connectToDb(options.dbOptions, logger)
-  const rabbit = await connectToRabbit(options.rabbitOptions, msName, logger)
+  const rabbit = await connectToRabbit(options.rabbitOptions, msName, options.instanceId, logger)
   const commandBus = new LocalCommandBus(logger, trace.getTracer(msName))
   const eventBus = new RabbitServiceBus(rabbit, msName, logger)
 

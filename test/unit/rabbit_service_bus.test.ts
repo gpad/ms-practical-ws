@@ -46,7 +46,7 @@ class TestDomainEvent extends DomainEvent {
 describe("RabbitServiceBus", () => {
   const opts = getTestOptions()
   const logger = configureLogger(opts.logger)
-  const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", 50, logger)
+  const rabbit = new Rabbit(opts.rabbitOptions.uri, "ms_temp", "test", 50, logger)
   let rabbitServiceBus: RabbitServiceBus
 
   beforeEach(async () => {
