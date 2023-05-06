@@ -39,11 +39,13 @@ export class Rabbit {
   private stopping = false
   private consumers: string[] = []
   private deadLetterQueueName?: string
+
   constructor(
     private readonly uri: string,
-    readonly msName: string,
-    private prefetch: number,
-    private logger: Logger
+    private readonly msName: string,
+    private readonly consumerTag: string,
+    private readonly prefetch: number,
+    private readonly logger: Logger
   ) {}
 
   async connect({ temporary }: { temporary: boolean }) {
@@ -90,13 +92,17 @@ export class Rabbit {
     })
 
     await this.channel.bindQueue(opts.queueName, opts.exchange, opts.bindingKey)
-    await this.channel.consume(opts.queueName, async (msg) => {
-      try {
-        await this.handleMessage(msg, consumer)
-      } catch (error) {
-        this.logger.error(`Unable to handle message ${inspect(msg)} with consumer: ${inspect(opts)}`)
-      }
-    })
+    await this.channel.consume(
+      opts.queueName,
+      async (msg) => {
+        try {
+          await this.handleMessage(msg, consumer)
+        } catch (error) {
+          this.logger.error(`Unable to handle message ${inspect(msg)} with consumer: ${inspect(opts)}`)
+        }
+      },
+      { consumerTag: this.consumerTag }
+    )
     this.consumers.push(opts.queueName)
   }
 

@@ -12,7 +12,7 @@ export class TestConsumer extends Rabbit {
   private messages: RabbitMessage[] = []
 
   constructor(uri: string, logger: Logger) {
-    super(uri, "ms-template", 50, logger)
+    super(uri, "ms-template", "test", 50, logger)
   }
 
   assertNotReceived(predicate: (m: RabbitMessage) => boolean) {

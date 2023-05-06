@@ -1,7 +1,7 @@
 import compression from "compression"
-import express, { Application } from "express"
+import express, { Application, json, urlencoded } from "express"
 import { Logger, createLogger, format, transports } from "winston"
-import morgan from "morgan"
+import morgan, { token } from "morgan"
 import { IncomingMessage } from "http"
 import { Pool } from "pg"
 import { AppOptions, DbOptions, RabbitOptions } from "./env"
@@ -9,6 +9,7 @@ import { v4 as uuid } from "uuid"
 import * as homeController from "./controllers/home"
 import * as statusController from "./controllers/status"
 import * as usersController from "./controllers/users"
+import * as heavyStuffController from "./controllers/heavy_stuff"
 import runner from "node-pg-migrate"
 import { Rabbit } from "./infra/rabbit"
 import { LocalCommandBus } from "./infra/local_command_bus"
@@ -19,19 +20,20 @@ import { UserRepository } from "./user/user_repository"
 import { createEventBuilderFor, RabbitServiceBus } from "./infra/rabbit_service_bus"
 import { EmailConfirmed } from "./user/user"
 import { inspect } from "util"
-import multer from "multer"
+import multer, { memoryStorage } from "multer"
 import { errorHandler } from "./infra/error_handler"
 import { validateEmailConfirmedPayload } from "./user/validation"
 import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
 import { UserView } from "./user/user_view"
 import { registerPromMetrics } from "./monitoring"
 import { trace } from "@opentelemetry/api"
+import { HeavyStuffCommandHandler } from "./heavy_stuff/heavy_stuff"
 
-const storage = multer.memoryStorage()
+const storage = memoryStorage()
 const upload = multer({ storage: storage })
 
 function configureMorgan(app: Application, logger: Logger) {
-  morgan.token<IncomingMessage & { id: string }>("id", (req) => req.id)
+  token<IncomingMessage & { id: string }>("id", (req) => req.id)
   const f =
     ':id :remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" status: :status content-length: :res[content-length] ":referrer" ":user-agent"'
   app.use(morgan(f, { skip: (_req, res) => res.statusCode >= 400, stream: { write: (m) => logger.info(m) } }))
@@ -92,9 +94,14 @@ export async function connectToDb({ host, user, pwd, db }: DbOptions, logger: Lo
   }
 }
 
-export async function connectToRabbit({ uri, tmpQueue }: RabbitOptions, msName: string, logger: Logger) {
+export async function connectToRabbit(
+  { uri, tmpQueue }: RabbitOptions,
+  msName: string,
+  instanceId: string,
+  logger: Logger
+) {
   try {
-    const rabbit = new Rabbit(uri, msName, 50, logger)
+    const rabbit = new Rabbit(uri, msName, `${msName}_${instanceId}`, 50, logger)
     await rabbit.connect({ temporary: tmpQueue })
     return rabbit
   } catch (error) {
@@ -110,7 +117,7 @@ async function createApp(options: AppOptions) {
   const logger = configureLogger(options.logger)
   await migrate(options.dbOptions)
   const { db } = await connectToDb(options.dbOptions, logger)
-  const rabbit = await connectToRabbit(options.rabbitOptions, msName, logger)
+  const rabbit = await connectToRabbit(options.rabbitOptions, msName, options.instanceId, logger)
   const commandBus = new LocalCommandBus(logger, trace.getTracer(msName))
   const eventBus = new RabbitServiceBus(rabbit, msName, logger)
 
@@ -118,6 +125,9 @@ async function createApp(options: AppOptions) {
   const userView = new UserView(db)
   const userCommandHandler = new UserCommandHandler(userRepository, options.storageServiceUrl)
   userCommandHandler.registerTo(commandBus)
+
+  const heavyStuffCommandHandler = new HeavyStuffCommandHandler(msName)
+  heavyStuffCommandHandler.registerTo(commandBus)
 
   const confirmationPolicy = new ConfirmationPolicy(commandBus)
   confirmationPolicy.registerTo(eventBus)
@@ -133,8 +143,8 @@ async function createApp(options: AppOptions) {
   // Express configuration
   app.set("port", options.port)
   app.use(compression())
-  app.use(express.json())
-  app.use(express.urlencoded({ extended: true }))
+  app.use(json())
+  app.use(urlencoded({ extended: true }))
 
   app.get("/metrics", registerPromMetrics)
 
@@ -146,6 +156,7 @@ async function createApp(options: AppOptions) {
   app.post("/api/users", usersController.createUser(commandBus))
   app.get("/api/users", usersController.getUsers(userView))
   app.post("/api/users/:id/photo", upload.any(), usersController.uploadPhoto(commandBus))
+  app.post("/api/heavy-stuff", heavyStuffController.execute(commandBus))
 
   app.use(errorHandler(logger))
 
