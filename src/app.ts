@@ -9,6 +9,7 @@ import { v4 as uuid } from "uuid"
 import * as homeController from "./controllers/home"
 import * as statusController from "./controllers/status"
 import * as usersController from "./controllers/users"
+import * as heavyStuffController from "./controllers/heavy_stuff"
 import runner from "node-pg-migrate"
 import { Rabbit } from "./infra/rabbit"
 import { LocalCommandBus } from "./infra/local_command_bus"
@@ -26,6 +27,7 @@ import { startOutboxPatternMonitor } from "./infra/outbox_pattern"
 import { UserView } from "./user/user_view"
 import { registerPromMetrics } from "./monitoring"
 import { trace } from "@opentelemetry/api"
+import { HeavyStuffCommandHandler } from "./heavy_stuff/heavy_stuff"
 
 const storage = memoryStorage()
 const upload = multer({ storage: storage })
@@ -124,6 +126,9 @@ async function createApp(options: AppOptions) {
   const userCommandHandler = new UserCommandHandler(userRepository, options.storageServiceUrl)
   userCommandHandler.registerTo(commandBus)
 
+  const heavyStuffCommandHandler = new HeavyStuffCommandHandler(msName)
+  heavyStuffCommandHandler.registerTo(commandBus)
+
   const confirmationPolicy = new ConfirmationPolicy(commandBus)
   confirmationPolicy.registerTo(eventBus)
 
@@ -151,6 +156,7 @@ async function createApp(options: AppOptions) {
   app.post("/api/users", usersController.createUser(commandBus))
   app.get("/api/users", usersController.getUsers(userView))
   app.post("/api/users/:id/photo", upload.any(), usersController.uploadPhoto(commandBus))
+  app.post("/api/heavy-stuff", heavyStuffController.execute(commandBus))
 
   app.use(errorHandler(logger))
 
