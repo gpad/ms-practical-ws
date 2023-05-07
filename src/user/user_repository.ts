@@ -1,12 +1,12 @@
 import { EventBus } from "../infra/event_bus"
 import { DomainTrace } from "../infra/domain_trace"
 import { User, UserId } from "./user"
-import sql, { join, RawValue } from "sql-template-tag"
-import { Db, Queryable } from "../infra/db"
+import sql, { RawValue } from "sql-template-tag"
+import { Db } from "../infra/db"
 import { Logger } from "winston"
 import { inspect } from "util"
-import { AggregateVersion, DomainEvent } from "../infra/aggregate"
-import { isEmpty } from "lodash"
+import { ConcurrencyError } from "../infra/local_command_bus"
+import { emitAllEvents, saveEvents } from "../infra/outbox_pattern"
 
 export class UserRepository {
   constructor(private db: Db, private eventBus: EventBus) {}
@@ -71,74 +71,7 @@ export class UserRepository {
     logger.info(`User ${user.id} saved! - ${inspect(trace)} elapsed: ${Date.now() - startAt}`)
 
     logger.info(`Emitting all events ${inspect(enrichedEvents)} from successful write to database`)
-    await this.emitAllEvents(enrichedEvents, logger)
+    await emitAllEvents(enrichedEvents, this.db, this.eventBus, logger)
     logger.info(`All events for ${user.id} successfully emitted! - ${inspect(trace)} elapsed: ${Date.now() - startAt}`)
   }
-
-  private async emitAllEvents(events: DomainEvent[], logger: Logger) {
-    if (isEmpty(events)) return
-    const ids = events.map((e) => e.id.toValue())
-    try {
-      await this.db.transaction(async (tr) => {
-        const xyz = await tr.query<SqlSchema.aggregate_events>(
-          sql`select * from aggregate_events where id IN (${join(ids)}) FOR UPDATE`
-        )
-        await this.eventBus.emits(filterAlreadyPublished(events, xyz))
-        await tr.query(sql`update aggregate_events set published = true where id IN (${join(ids)})`)
-      })
-    } catch (error) {
-      logger.error(`Unable to emit events: ${inspect(events, { depth: 10 })}`)
-    }
-  }
-}
-
-export class ConcurrencyError extends Error {
-  constructor(message: string) {
-    super(`ConcurrencyError in ${message}`)
-  }
-}
-async function saveEvents(
-  tr: Queryable,
-  events: DomainEvent[],
-  aggregateVersion: number,
-  trace: DomainTrace
-): Promise<DomainEvent[]> {
-  const enrichedEvents = events.map((e, i) => e.enrich({ trace, version: new AggregateVersion(aggregateVersion, i) }))
-  const queries = enrichedEvents.map(
-    (e) => sql`INSERT into aggregate_events 
-  (
-    id, 
-    aggregate_id,
-    event_name,
-    aggregate_version,
-    aggregate_version_index,
-    causation_id,
-    correlation_id,
-    public,
-    published,
-    payload
-  )
-  VALUES
-  (
-    ${e.id.toValue()},
-    ${e.aggregateId.toValue()},
-    ${e.eventName},
-    ${e.aggregateVersion.version},
-    ${e.aggregateVersion.index},
-    ${e.domainTrace.causationId.toValue()},
-    ${e.domainTrace.correlationId.toValue()},
-    ${e.public},
-    false,
-    ${e.toPayload() as {}}
-  )`
-  )
-  await Promise.all(queries.map((q) => tr.query(q)))
-  return enrichedEvents
-}
-
-function filterAlreadyPublished(events: DomainEvent[], xyz: SqlSchema.aggregate_events[]): DomainEvent[] {
-  return events.filter((e) => {
-    const db = xyz.find((x) => x.id === e.id.toValue())
-    return db && !db.published
-  })
 }

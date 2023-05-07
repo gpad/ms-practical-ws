@@ -2,9 +2,14 @@ import { Tracer } from "@opentelemetry/api"
 import { random } from "lodash"
 import { inspect } from "util"
 import { Logger } from "winston"
-import { ConcurrencyError } from "../user/user_repository"
 import { Command } from "./command"
 import { elapsedFrom, wait } from "./wait"
+
+export class ConcurrencyError extends Error {
+  constructor(message: string) {
+    super(`ConcurrencyError in ${message}`)
+  }
+}
 
 interface FailCommandResult {
   success: false
