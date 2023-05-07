@@ -22,4 +22,9 @@ export class FakeEventBus implements EventBus {
   raiseOnEmit(error: Error = new Error("Raise on error")) {
     this._raiseOnEmit = error
   }
+
+  reset() {
+    this._raiseOnEmit = null
+    this.events.splice(0)
+  }
 }

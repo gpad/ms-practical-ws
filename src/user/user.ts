@@ -82,6 +82,50 @@ export class EmailConfirmed extends PublicDomainEvent {
   }
 }
 
+export type UserConfirmedPayload = {
+  id: string
+  confirmedAt: string
+  firstName: string
+  lastName: string
+  email: string
+}
+
+export class UserConfirmed extends DomainEvent {
+  static readonly EventName = "user_confirmed"
+
+  static create(payload: UserConfirmedPayload): UserConfirmed {
+    const eventId = EventId.new()
+    const domainTrace = DomainTrace.create(eventId)
+    return new UserConfirmed(
+      eventId,
+      UserId.from(payload.id),
+      UserConfirmed.EventName,
+      payload,
+      AggregateVersion.Empty,
+      domainTrace
+    )
+  }
+
+  constructor(
+    id: EventId,
+    aggregateId: UserId,
+    eventName: string,
+    readonly payload: UserConfirmedPayload,
+    aggregateVersion: AggregateVersion,
+    domainTrace: DomainTrace
+  ) {
+    super(id, aggregateId, eventName, aggregateVersion, domainTrace)
+  }
+
+  enrich({ trace, version }: EnrichOptions): UserConfirmed {
+    return new UserConfirmed(this.id, this.aggregateId as UserId, this.eventName, this.payload, version, trace)
+  }
+
+  toPayload() {
+    return this.payload
+  }
+}
+
 export class User extends Aggregate<UserId> {
   private _data: UserData
   constructor(id: UserId, data: UserData, version: number, events: DomainEvent[]) {
@@ -103,6 +147,15 @@ export class User extends Aggregate<UserId> {
       throw new Error(`Email ${email} is not associated to user id: ${this.id} - ${this._data.email}`)
     }
     this._data.confirmedAt = new Date()
+    this.addPendingEvents(
+      UserConfirmed.create({
+        id: this.id.toValue(),
+        confirmedAt: this._data.confirmedAt.toISOString(),
+        email: this._data.email,
+        firstName: this._data.firstName,
+        lastName: this._data.lastName,
+      })
+    )
   }
 
   public get data(): UserData {

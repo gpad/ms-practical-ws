@@ -160,7 +160,7 @@ async function createApp(options: AppOptions) {
 
   app.use(errorHandler(logger))
 
-  await startOutboxPatternMonitor(rabbit, db, logger)
+  await startOutboxPatternMonitor(eventBus, db, logger)
 
   await eventBus.start(
     [createEventBuilderFor(validateEmailConfirmedPayload, EmailConfirmed)],

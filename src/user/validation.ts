@@ -2,7 +2,7 @@ import Ajv, { JSONSchemaType } from "ajv"
 import { EmailConfirmedPayload, UserCreatedPayload } from "./user"
 import addFormats from "ajv-formats"
 
-const ajv = new Ajv({ strict: true })
+export const ajv = new Ajv({ strict: true })
 addFormats(ajv)
 
 const UserCreatedPayloadSchema: JSONSchemaType<UserCreatedPayload> = {

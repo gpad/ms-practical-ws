@@ -56,7 +56,7 @@ export class GenericPublicDomainEventBuilder<T, U extends PublicDomainEvent> imp
 
   createFromMessage(msg: ReceivedMessage): U {
     if (!this.validation(msg.payload)) {
-      throw new Error(`Unable to verify msg: ${inspect(msg)} because: ${this.validation.errors}`)
+      throw new Error(`Unable to verify msg: ${inspect(msg)} because: ${inspect(this.validation.errors)}`)
     }
     const eventId = EventId.from(msg.messageId)
     const domainTrace = new DomainTrace(CorrelationId.from(msg.correlationId), CausationId.from(msg.causationId))
@@ -91,6 +91,12 @@ export class RabbitServiceBus implements EventBus {
       throw new Error(`Some builders doesn't have an handler, builders: ${eventNames}, handlers: ${handlerNames}`)
     }
     await Promise.all(eventNames.map((eventName, index) => this.createConsumer(eventName, builders[index], temporary)))
+  }
+
+  async stop(): Promise<void> {
+    await this.waitPendingExecutions()
+    this.handlers = {}
+    this.pendingLocalEvents.splice(0)
   }
 
   emit<T extends DomainEvent>(event: T): Promise<void> {
@@ -149,7 +155,6 @@ export class RabbitServiceBus implements EventBus {
     try {
       const rabbitMessage = JSON.parse(msg.content.toString()) as RabbitMessage
       const receivedMessage: ReceivedMessage = rabbitMessage
-      // const event = createEventFrom<T>(msg)
       const event = builder.createFromMessage(receivedMessage)
       const logger = this.createLoggerFrom<T>(event)
       const ret = await handler(event, logger)
@@ -207,6 +212,10 @@ export class RabbitServiceBus implements EventBus {
     const start = Date.now()
     const logger = this.createLoggerFrom<T>(event)
     const handler = this.handlers[event.eventName] as EventHandler<T>
+    if (!handler) {
+      this.logger.error(`Unable to find handler for event: ${event.eventName}`)
+      return
+    }
     while (count < 3) {
       try {
         const ret = await handler(event, logger)
