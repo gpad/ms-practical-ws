@@ -43,8 +43,8 @@ Send via rabbit this message on exchange: `events` with routing key: `event.test
   "aggregateVersion": 0,
   "aggregateVersionIndex": 0,
   "payload": {
-    "id": "0c89fd06-d452-4547-8158-ef44214a84a7",
-    "email": "Leanna_Jones49_1224@gmail.com",
+    "userId": "0c89fd06-d452-4547-8158-ef44214a84a7",
+    "email": "Leanna_Jones49_1224@gmail.com"
   }
 }
 ```

@@ -3,6 +3,7 @@ import { ConfirmChannel, connect, Connection, ConsumeMessage, Message, Replies, 
 import { random } from "lodash"
 import { inspect } from "util"
 import { wait } from "./wait"
+import { randomUUID } from "crypto"
 
 export interface RabbitMessage {
   eventName: string
@@ -90,7 +91,6 @@ export class Rabbit {
       autoDelete: opts.temporary,
       deadLetterExchange: DeadLetterExchange,
     })
-
     await this.channel.bindQueue(opts.queueName, opts.exchange, opts.bindingKey)
     await this.channel.consume(
       opts.queueName,
@@ -101,7 +101,7 @@ export class Rabbit {
           this.logger.error(`Unable to handle message ${inspect(msg)} with consumer: ${inspect(opts)}`)
         }
       },
-      { consumerTag: this.consumerTag }
+      { consumerTag: `${this.consumerTag}-${randomUUID()}` }
     )
     this.consumers.push(opts.queueName)
   }

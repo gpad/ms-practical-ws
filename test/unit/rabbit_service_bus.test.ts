@@ -108,11 +108,89 @@ describe("RabbitServiceBus", () => {
     })
   })
 
-  it("raise exception if handler is already registered", () => {
-    rabbitServiceBus.register(UserCreated.EventName, () => Promise.resolve({ ack: true, payload: "" }))
-    expect(() => {
-      rabbitServiceBus.register(UserCreated.EventName, () => Promise.resolve({ ack: true, payload: "" }))
-    }).throws(`${UserCreated.EventName} is already registered!`)
+  it("multiple handlers for same events", async () => {
+    const events: { e: DomainEvent; h: string }[] = []
+    rabbitServiceBus.register(
+      TestPublicDomainEvent.EventName,
+      (e) => {
+        events.push({ e, h: "h1" })
+        return Promise.resolve({ ack: true, payload: "" })
+      },
+      "h1"
+    )
+    rabbitServiceBus.register(
+      TestPublicDomainEvent.EventName,
+      (e) => {
+        events.push({ e, h: "h2" })
+        return Promise.resolve({ ack: true, payload: "" })
+      },
+      "h2"
+    )
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateTestPublicDomainEventPayload, TestPublicDomainEvent)],
+      opts.rabbitOptions.tmpQueue
+    )
+
+    const emittedEvent = TestPublicDomainEvent.create()
+    await rabbitServiceBus.emit(emittedEvent)
+
+    expect(events.map((e) => e.h)).members(["h1", "h2"])
+    expect(events.map((e) => e.e)).eql([emittedEvent, emittedEvent])
+  })
+
+  it("create queues only for public events", async () => {
+    rabbitServiceBus.register(TestDomainEvent.EventName, () => Promise.resolve({ ack: true, payload: "" }))
+    await rabbitServiceBus.start([], opts.rabbitOptions.tmpQueue)
+
+    const { queues } = (await rabbit.getInfo()) as RabbitGetInfo
+    expect(queues.map((q) => q.queue)).eql([])
+  })
+
+  it("every builder should have at least one handler", async () => {
+    await expectThrowsAsync(
+      async () => {
+        await rabbitServiceBus.start(
+          [createEventBuilderFor(validateTestPublicDomainEventPayload, TestPublicDomainEvent)],
+          opts.rabbitOptions.tmpQueue
+        )
+      },
+      Error,
+      `Missing handlers for events: ${TestPublicDomainEvent.EventName}`
+    )
+  })
+
+  it("local and public handler could not have a builder", async () => {
+    rabbitServiceBus.register(TestPublicDomainEvent.EventName, () => Promise.resolve({ ack: true, payload: "" }))
+    rabbitServiceBus.register(TestDomainEvent.EventName, () => Promise.resolve({ ack: true, payload: "" }))
+    await rabbitServiceBus.start([], opts.rabbitOptions.tmpQueue)
+  })
+
+  it("can't be register same handler 2 times", () => {
+    const eventName = TestPublicDomainEvent.EventName
+    rabbitServiceBus.register(eventName, () => Promise.resolve({ ack: true, payload: "" }), "h1")
+    rabbitServiceBus.register(eventName, () => Promise.resolve({ ack: true, payload: "" }))
+    expect(() => rabbitServiceBus.register(eventName, () => Promise.resolve({ ack: true, payload: "" }), "h1")).throw(
+      "h1 is already registered for event test_public_domain_event!"
+    )
+    expect(() => rabbitServiceBus.register(eventName, () => Promise.resolve({ ack: true, payload: "" }))).throw(
+      "default_test_public_domain_event is already registered for event test_public_domain_event!"
+    )
+  })
+
+  it("doesn't permit register when already started", async () => {
+    rabbitServiceBus.register(TestPublicDomainEvent.EventName, () => Promise.resolve({ ack: true, payload: "" }), "h1")
+
+    await rabbitServiceBus.start(
+      [createEventBuilderFor(validateTestPublicDomainEventPayload, TestPublicDomainEvent)],
+      opts.rabbitOptions.tmpQueue
+    )
+    expect(() =>
+      rabbitServiceBus.register(
+        TestPublicDomainEvent.EventName,
+        () => Promise.resolve({ ack: true, payload: "" }),
+        "h2"
+      )
+    ).throw("Rabbit already started!")
   })
 
   it("create queue when start serviceBus", async () => {
@@ -125,7 +203,7 @@ describe("RabbitServiceBus", () => {
 
     const info = (await rabbit.getInfo()) as RabbitGetInfo
     const queueInfo = getQueueInfoOf(info, UserCreated.EventName)
-    expect(queueInfo.queue).eql(`ms_temp_${UserCreated.EventName}_tmp`)
+    expect(queueInfo.queue).eql(`ms_temp_${UserCreated.EventName}_default_user_created_tmp`)
   })
 
   it("raise exception if we don't have enough handlers for builders", async () => {
@@ -142,6 +220,24 @@ describe("RabbitServiceBus", () => {
         ),
       Error
     )
+  })
+
+  it("don't accept multiple handlers for same public events with same name", async () => {
+    rabbitServiceBus.register(TestPublicDomainEvent.EventName, async () => ({ ack: true, payload: "test" }), "lh1")
+    expect(() =>
+      rabbitServiceBus.register(TestPublicDomainEvent.EventName, async () => ({ ack: true, payload: "test" }), "lh1")
+    )
+      .throw("lh1 is already registered for event test_public_domain_event!")
+      .instanceOf(Error)
+  })
+
+  it("don't accept multiple handlers for same public events without name", async () => {
+    rabbitServiceBus.register(TestPublicDomainEvent.EventName, async () => ({ ack: true, payload: "test" }))
+    expect(() =>
+      rabbitServiceBus.register(TestPublicDomainEvent.EventName, async () => ({ ack: true, payload: "test" }))
+    )
+      .throw("default_test_public_domain_event is already registered for event test_public_domain_event!")
+      .instanceOf(Error)
   })
 
   describe("local events", () => {
@@ -290,6 +386,48 @@ describe("RabbitServiceBus", () => {
       await Promise.all(range(howManyEvents).map(() => rabbitServiceBus.emit(TestDomainEvent.create())))
       await eventually(() => expect(events).lengthOf(howManyEvents))
       await rabbitServiceBus.waitPendingExecutions()
+    })
+
+    it("don't accept multiple handlers for same events with same name", async () => {
+      rabbitServiceBus.register(TestDomainEvent.EventName, async () => ({ ack: true, payload: "test" }), "lh1")
+      expect(() =>
+        rabbitServiceBus.register(TestDomainEvent.EventName, async () => ({ ack: true, payload: "test" }), "lh1")
+      )
+        .throw("lh1 is already registered for event test_domain_event!")
+        .instanceOf(Error)
+    })
+
+    it("don't accept multiple handlers for same events without name", async () => {
+      rabbitServiceBus.register(TestDomainEvent.EventName, async () => ({ ack: true, payload: "test" }))
+      expect(() => rabbitServiceBus.register(TestDomainEvent.EventName, async () => ({ ack: true, payload: "test" })))
+        .throw("default_test_domain_event is already registered for event test_domain_event!")
+        .instanceOf(Error)
+    })
+
+    it("accept multiple handlers for same events with different name", async () => {
+      const events: string[] = []
+      rabbitServiceBus.register(
+        TestDomainEvent.EventName,
+        async (e: TestDomainEvent) => {
+          events.push(`${e.eventName}-lh1`)
+          return { ack: true, payload: "test" }
+        },
+        "lh1"
+      )
+      rabbitServiceBus.register(
+        TestDomainEvent.EventName,
+        async (e: TestDomainEvent) => {
+          events.push(`${e.eventName}-lh2`)
+          return { ack: true, payload: "test" }
+        },
+        "lh2"
+      )
+
+      await rabbitServiceBus.emit(TestDomainEvent.create())
+
+      await eventually(() =>
+        expect(events).members([`${TestDomainEvent.EventName}-lh1`, `${TestDomainEvent.EventName}-lh2`])
+      )
     })
   })
 })
