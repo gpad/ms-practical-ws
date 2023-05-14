@@ -27,7 +27,6 @@ describe("outbox patter", () => {
     db = res.db
     await rabbit.connect({ temporary: true })
     await testConsumer.start()
-    await serviceBus.start([], true)
   })
 
   afterEach(() => db.query(sql`TRUNCATE aggregate_events CASCADE`))
@@ -40,6 +39,7 @@ describe("outbox patter", () => {
     const notPublicEvent1 = await addUnpublishedEvent(db, { public: false })
     const notPublicEvent2 = await addUnpublishedEvent(db, { public: false })
     const event = await addUnpublishedEvent(db)
+    await serviceBus.start([], true)
 
     await startOutboxPatternMonitor(serviceBus, db, logger)
 
@@ -57,6 +57,7 @@ describe("outbox patter", () => {
       events.push(e)
       return Promise.resolve({ ack: true })
     })
+    await serviceBus.start([], true)
 
     await startOutboxPatternMonitor(serviceBus, db, logger)
 
@@ -78,6 +79,7 @@ describe("outbox patter", () => {
       events.push(e)
       return Promise.resolve({ ack: false })
     })
+    await serviceBus.start([], true)
 
     await startOutboxPatternMonitor(serviceBus, db, logger)
 
