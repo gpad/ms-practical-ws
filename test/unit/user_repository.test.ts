@@ -9,7 +9,8 @@ import { UserRepository } from "../../src/user/user_repository"
 import { FakeEventBus } from "../support/fake_event_bus"
 import { createUser } from "../support/fake_data"
 import { getTestOptions } from "../support/test_app"
-import sql from "sql-template-tag"
+import sql, { join } from "sql-template-tag"
+import { eventually } from "../support/expect_util"
 
 describe("UserRepository", () => {
   const opts = getTestOptions()
@@ -29,6 +30,7 @@ describe("UserRepository", () => {
   beforeEach(async () => {
     const res = await connectToDb(opts.dbOptions, logger)
     db = res.db
+    fakeEventBus.reset()
   })
 
   it("save and load user", async () => {
@@ -68,6 +70,8 @@ describe("UserRepository", () => {
 
   it("update user", async () => {
     const user = await createUserInDb()
+    const repository = new UserRepository(db, fakeEventBus)
+
     user.updateData({
       firstName: faker.name.firstName(),
       lastName: faker.name.lastName(),
@@ -75,16 +79,14 @@ describe("UserRepository", () => {
       email: faker.internet.email(),
       confirmedAt: new Date(),
     })
-    const repository = new UserRepository(db, fakeEventBus)
     await repository.save(user, domainTrace, logger)
 
     const fromDb = await repository.getById(user.id)
-
     expect(fromDb.id).eql(user.id)
     expect(fromDb.data).eql(user.data)
   })
 
-  it("save doesn't file also if eventBus raise exception", async () => {
+  it("save doesn't fail also if eventBus raise exception", async () => {
     const user = createUser()
     const repository = new UserRepository(db, fakeEventBus)
     fakeEventBus.raiseOnEmit()
@@ -95,4 +97,22 @@ describe("UserRepository", () => {
     expect(fromDb.id).eql(user.id)
     expect(fromDb.data).eql(user.data)
   })
+
+  it("make local event as published", async () => {
+    const user = await createUserInDb()
+    const repository = new UserRepository(db, fakeEventBus)
+
+    user.confirmEmail(user.data.email)
+    const pendingEvents = user.pendingEvents
+    await repository.save(user, domainTrace, logger)
+
+    await eventually(async () => {
+      const res = await db.query(
+        sql`select count(*) from aggregate_events where id IN (${join(
+          pendingEvents.map((e) => e.id.toValue())
+        )}) AND published`
+      )
+      expect(res).eql([{ count: "1" }])
+    }, 3000)
+  }).timeout(5000)
 })

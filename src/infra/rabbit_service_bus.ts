@@ -56,7 +56,7 @@ export class GenericPublicDomainEventBuilder<T, U extends PublicDomainEvent> imp
 
   createFromMessage(msg: ReceivedMessage): U {
     if (!this.validation(msg.payload)) {
-      throw new Error(`Unable to verify msg: ${inspect(msg)} because: ${this.validation.errors}`)
+      throw new Error(`Unable to verify msg: ${inspect(msg)} because: ${inspect(this.validation.errors)}`)
     }
     const eventId = EventId.from(msg.messageId)
     const domainTrace = new DomainTrace(CorrelationId.from(msg.correlationId), CausationId.from(msg.causationId))
@@ -75,22 +75,44 @@ export function createEventBuilderFor<T, U extends PublicDomainEvent>(
   return new GenericPublicDomainEventBuilder(validation, messageClass)
 }
 
+type HandlerName = string
+type EventName = string
+type Handlers = Map<HandlerName, EventHandler<never>>
+
 export class RabbitServiceBus implements EventBus {
-  private handlers: { [key: string]: EventHandler<never> } = {}
+  private handlers: Map<EventName, Handlers> = new Map()
+
   private pendingLocalEvents: DomainEvent[] = []
   private executingLocalEvents = false
+  private started = false
 
   constructor(private readonly rabbit: Rabbit, private msName: string, private logger: Logger) {}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async start(builders: PublicDomainEventBuilder<any>[], temporary: boolean): Promise<void> {
-    const eventNames = builders.map((b) => b.getEventName())
-    const handlerNames = Object.keys(this.handlers)
-    const everyBuildersHaveHandlers = eventNames.every((e) => handlerNames.find((h) => h === e))
-    if (!everyBuildersHaveHandlers) {
-      throw new Error(`Some builders doesn't have an handler, builders: ${eventNames}, handlers: ${handlerNames}`)
-    }
-    await Promise.all(eventNames.map((eventName, index) => this.createConsumer(eventName, builders[index], temporary)))
+  async start(builders: PublicDomainEventBuilder<PublicDomainEvent>[], temporary: boolean): Promise<void> {
+    await Promise.all(
+      builders.flatMap((builder) => {
+        const publicEventName = builder.getEventName()
+        const handlers = this.handlers.get(publicEventName)
+        if (!handlers) throw new Error(`Missing handlers for events: ${publicEventName}`)
+        return Array.from(handlers).map(([handlerName, handler]) => {
+          return this.createConsumer<PublicDomainEvent>(
+            handlerName,
+            publicEventName,
+            handler as EventHandler<PublicDomainEvent>,
+            builder,
+            temporary
+          )
+        })
+      })
+    )
+    this.started = true
+  }
+
+  async stop(): Promise<void> {
+    await this.waitPendingExecutions()
+    this.handlers = new Map()
+    this.pendingLocalEvents.splice(0)
+    this.started = false
   }
 
   emit<T extends DomainEvent>(event: T): Promise<void> {
@@ -110,9 +132,15 @@ export class RabbitServiceBus implements EventBus {
     return this.rabbit.publishAll(publicEvents.map(toMessage))
   }
 
-  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void {
-    if (this.alreadyRegister(eventName)) throw new Error(`${eventName} is already registered!`)
-    this.handlers[eventName] = handler
+  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>, handlerName?: string): void {
+    if (this.started) throw new Error("Rabbit already started!")
+    const hName = handlerName ?? `default_${eventName}`
+    const handlers = this.handlers.get(eventName) || new Map<HandlerName, EventHandler<T>>()
+    if (handlers.get(hName)) {
+      throw new Error(`${hName} is already registered for event ${eventName}!`)
+    }
+    handlers.set(hName, handler)
+    this.handlers.set(eventName, handlers)
   }
 
   async waitPendingExecutions() {
@@ -123,21 +151,18 @@ export class RabbitServiceBus implements EventBus {
   }
 
   private createConsumer<T extends PublicDomainEvent>(
-    eventName: string,
+    handlerName: HandlerName,
+    eventName: EventName,
+    handler: EventHandler<T>,
     builder: PublicDomainEventBuilder<T>,
     temporary: boolean
   ): Promise<void> {
-    return this.rabbit.startConsumer(
-      (msg) => {
-        return this.handleMessage<T>(msg, this.handlers[eventName] as EventHandler<T>, builder)
-      },
-      {
-        queueName: this.createQueueNameFrom(eventName, temporary),
-        bindingKey: `event.*.${eventName}`,
-        exchange: "events",
-        temporary,
-      }
-    )
+    return this.rabbit.startConsumer((msg) => this.handleMessage<T>(msg, handler, builder), {
+      queueName: this.createQueueNameFrom(handlerName, eventName, temporary),
+      bindingKey: `event.*.${eventName}`,
+      exchange: "events",
+      temporary,
+    })
   }
 
   private async handleMessage<T extends PublicDomainEvent>(
@@ -149,7 +174,6 @@ export class RabbitServiceBus implements EventBus {
     try {
       const rabbitMessage = JSON.parse(msg.content.toString()) as RabbitMessage
       const receivedMessage: ReceivedMessage = rabbitMessage
-      // const event = createEventFrom<T>(msg)
       const event = builder.createFromMessage(receivedMessage)
       const logger = this.createLoggerFrom<T>(event)
       const ret = await handler(event, logger)
@@ -182,12 +206,8 @@ export class RabbitServiceBus implements EventBus {
     })
   }
 
-  private createQueueNameFrom(eventName: string, temporary: boolean): string {
-    return `${snakeCase(this.msName)}_${snakeCase(eventName)}${temporary ? "_tmp" : ""}`
-  }
-
-  private alreadyRegister(commandName: string) {
-    return !!this.handlers[commandName]
+  private createQueueNameFrom(handlerName: string, eventName: string, temporary: boolean): string {
+    return `${snakeCase(this.msName)}_${snakeCase(eventName)}_${snakeCase(handlerName)}${temporary ? "_tmp" : ""}`
   }
 
   private async executePendingEvents(): Promise<void> {
@@ -197,16 +217,20 @@ export class RabbitServiceBus implements EventBus {
     this.executingLocalEvents = true
     while (this.pendingLocalEvents.length) {
       const events = this.pendingLocalEvents.splice(0)
-      await Promise.all(events.map((e) => this.dispatchLocalEvent(e)))
+      await Promise.all(
+        events.flatMap((e) => {
+          const handlers = this.handlers.get(e.eventName) || new Map<HandlerName, EventHandler<never>>()
+          return Array.from(handlers.values()).map((handler) => this.dispatchLocalEvent(e as never, handler))
+        })
+      )
     }
     this.executingLocalEvents = false
   }
 
-  private async dispatchLocalEvent<T extends DomainEvent>(event: T) {
+  private async dispatchLocalEvent<T extends DomainEvent>(event: T, handler: EventHandler<T>) {
     let count = 0
     const start = Date.now()
     const logger = this.createLoggerFrom<T>(event)
-    const handler = this.handlers[event.eventName] as EventHandler<T>
     while (count < 3) {
       try {
         const ret = await handler(event, logger)

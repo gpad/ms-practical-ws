@@ -100,7 +100,7 @@ export abstract class Aggregate<T extends AggregateId> {
   }
 
   get pendingEvents(): DomainEvent[] {
-    return this._pendingEvents
+    return [...this._pendingEvents]
   }
 
   protected addPendingEvents(event: DomainEvent) {
