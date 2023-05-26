@@ -9,7 +9,7 @@ export interface EventResult {
 export type EventHandler<T extends DomainEvent> = (e: T, logger: Logger) => Promise<EventResult>
 
 export interface EventBus {
-  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>): void
+  register<T extends DomainEvent>(eventName: string, handler: EventHandler<T>, handlerName?: string): void
   emit<T extends DomainEvent>(event: T): Promise<void>
   emits<T extends DomainEvent>(events: T[]): Promise<void>
 }

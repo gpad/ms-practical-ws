@@ -134,7 +134,7 @@ describe("RabbitServiceBus", () => {
     const emittedEvent = TestPublicDomainEvent.create()
     await rabbitServiceBus.emit(emittedEvent)
 
-    expect(events.map((e) => e.h)).members(["h1", "h2"])
+    await eventually(() => expect(events.map((e) => e.h)).members(["h1", "h2"]))
     expect(events.map((e) => e.e)).eql([emittedEvent, emittedEvent])
   })
 
