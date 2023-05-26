@@ -45,7 +45,7 @@ export class UserCommandHandler {
     const url = `${this.storageServiceUrl}/api/photo/${cmd.userId.toValue()}`
     logger.info(`Uploading photo to ${url} for cmd: ${inspect(cmd)}`)
     const formData = new FormData()
-    formData.append("file", cmd.photo)
+    formData.append("file", cmd.payload.photo)
     const ret = await got.post(url, { body: formData }).json<{ id: string }>()
     logger.info(`photo uploaded with ret: ${inspect(ret)}`)
     return { success: true, payload: { photoId: ret.id } }

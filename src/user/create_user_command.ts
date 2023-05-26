@@ -13,14 +13,24 @@ export class CreateUserCommand extends Command {
   }
 }
 
+export interface UploadPhotoCommandPayload {
+  readonly photo: Buffer
+  readonly location: { readonly lat: number; readonly long: number }
+}
+
 export class UploadPhotoCommand extends Command {
   static CommandName = "upload_photo"
 
-  static create(id: CommandId, userId: UserId, photo: Buffer, domainTrace: DomainTrace) {
-    return new UploadPhotoCommand(id, userId, photo, domainTrace)
+  static create(id: CommandId, userId: UserId, payload: UploadPhotoCommandPayload, domainTrace: DomainTrace) {
+    return new UploadPhotoCommand(id, userId, payload, domainTrace)
   }
 
-  constructor(id: CommandId, readonly userId: UserId, readonly photo: Buffer, domainTrace: DomainTrace) {
+  constructor(
+    id: CommandId,
+    readonly userId: UserId,
+    readonly payload: UploadPhotoCommandPayload,
+    domainTrace: DomainTrace
+  ) {
     super(id, userId, UploadPhotoCommand.CommandName, domainTrace)
   }
 }
