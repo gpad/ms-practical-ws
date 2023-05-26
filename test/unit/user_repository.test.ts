@@ -35,8 +35,8 @@ describe("UserRepository", () => {
 
   it("save and load user", async () => {
     const user = User.create(UserId.new(), {
-      firstName: faker.name.firstName(),
-      lastName: faker.name.lastName(),
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
       dateOfBirth: new Date(2006, 6, 6),
       email: faker.internet.email(),
       confirmedAt: null,
@@ -52,8 +52,8 @@ describe("UserRepository", () => {
 
   it("save a new user and all events are emitted", async () => {
     const user = User.create(UserId.new(), {
-      firstName: faker.name.firstName(),
-      lastName: faker.name.lastName(),
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
       dateOfBirth: new Date(2006, 6, 6),
       email: faker.internet.email(),
       confirmedAt: null,
@@ -73,8 +73,8 @@ describe("UserRepository", () => {
     const repository = new UserRepository(db, fakeEventBus)
 
     user.updateData({
-      firstName: faker.name.firstName(),
-      lastName: faker.name.lastName(),
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
       dateOfBirth: new Date(2007, 7, 7),
       email: faker.internet.email(),
       confirmedAt: new Date(),

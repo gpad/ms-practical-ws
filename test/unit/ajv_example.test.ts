@@ -1,6 +1,7 @@
 import Ajv from "ajv"
 import addFormats from "ajv-formats"
 import { expect } from "chai"
+import { v4 } from "uuid"
 import { validateUserCreatedPayload } from "../../src/user/validation"
 import { createUserCreatedPayload } from "../support/fake_data"
 const ajv = new Ajv({ strict: true })
@@ -44,5 +45,22 @@ describe("ajv example", () => {
       data.dateOfBirth
     }
     expect(ret).true
+  })
+
+  it("UserCreatedPayloadSchema", () => {
+    expect(
+      validateUserCreatedPayload({
+        id: v4(),
+        confirmedAt: null,
+        dateOfBirth: null,
+        email: "a@a.it",
+        firstName: "firstName",
+        lastName: "lastName",
+      })
+    ).true
+
+    expect(validateUserCreatedPayload({ id: v4(), email: "a@a.it", firstName: "firstName", lastName: "lastName" })).true
+    expect(validateUserCreatedPayload({ id: v4(), email: "a@a.it", lastName: "lastName" })).false
+    expect(validateUserCreatedPayload({ id: v4(), email: "email", firstName: "firstName", lastName: "lastName" })).false
   })
 })
