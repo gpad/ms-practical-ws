@@ -58,8 +58,8 @@ describe("create user via API", async () => {
 
 function fakeCreateUserPayload(): CreateUserPayload {
   return {
-    firstName: faker.name.firstName(),
-    lastName: faker.name.lastName(),
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
     dateOfBirth: new Date().toISOString(),
     email: faker.internet.email(),
   }

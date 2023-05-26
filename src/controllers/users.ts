@@ -60,16 +60,21 @@ export function uploadPhoto(commandBus: CommandBus) {
 function createUserCommandFrom(req: Request): CreateUserCommand {
   const commandId = CommandId.new()
   const domainTrace = DomainTrace.extractFromHeaders(req.headers, commandId)
-  const { payload } = check(req.body)
+  const { payload } = checkCreateUserBodySchema(req.body)
   return CreateUserCommand.create(commandId, UserId.new(), toUserData(payload), domainTrace)
 }
 
 function uploadPhotoCommandFrom(req: Request): UploadPhotoCommand {
   const commandId = CommandId.new()
   const domainTrace = DomainTrace.extractFromHeaders(req.headers, commandId)
-  const x = isArray(req.files) ? req.files[0] : null
-  if (!x) throw new Error("Unable to decode file")
-  return UploadPhotoCommand.create(commandId, UserId.from(req.params.id), x.buffer, domainTrace)
+  const location = checkUploadPhotoBodySchema(req.body)
+  const { buffer } = checkPhotoFrom(req)
+  return UploadPhotoCommand.create(
+    commandId,
+    UserId.from(req.params.id),
+    { photo: buffer, location: { lat: parseFloat(location.latitude), long: parseFloat(location.longitude) } },
+    domainTrace
+  )
 }
 
 export interface CreateUserPayload {
@@ -109,9 +114,39 @@ const CreateUserBodySchema = {
 
 const validateCreateUserBodySchema = ajv.compile<CreateUserBody>(CreateUserBodySchema)
 
-function check(body: unknown) {
+type UploadPhotoBody = {
+  latitude: string
+  longitude: string
+}
+
+const UploadPhotoBodySchema = {
+  type: "object",
+  properties: {
+    latitude: { type: "string" },
+    longitude: { type: "string" },
+  },
+  required: ["latitude", "longitude"],
+  additionalProperties: false,
+}
+
+const validateUploadPhotoBodySchema = ajv.compile<UploadPhotoBody>(UploadPhotoBodySchema)
+
+function checkPhotoFrom(req: Request) {
+  const x = isArray(req.files) ? req.files[0] : null
+  if (!x) throw new Error("Unable to decode file")
+  return x
+}
+
+function checkCreateUserBodySchema(body: unknown) {
   if (!validateCreateUserBodySchema(body))
     throw new Error(`Unable to parse ${inspect(body)}, errors: ${validateCreateUserBodySchema.errors}`)
+
+  return body
+}
+
+function checkUploadPhotoBodySchema(body: unknown) {
+  if (!validateUploadPhotoBodySchema(body))
+    throw new Error(`Unable to parse ${inspect(body)}, errors: ${validateUploadPhotoBodySchema.errors}`)
 
   return body
 }
