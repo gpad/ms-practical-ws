@@ -14,8 +14,8 @@ export function createUser() {
 
 export function createUserData(): UserData {
   return {
-    firstName: faker.name.firstName(),
-    lastName: faker.name.lastName(),
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
     dateOfBirth: new Date(2006, 6, 6),
     email: faker.internet.email(),
     confirmedAt: null,

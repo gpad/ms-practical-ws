@@ -54,8 +54,8 @@ describe("Upload photo", async () => {
 
     const res = await request(app)
       .post(`/api/users/${user.id.toValue()}/photo`)
-      .field("longitude", faker.address.longitude())
-      .field("latitude", faker.address.latitude())
+      .field("longitude", faker.location.longitude())
+      .field("latitude", faker.location.latitude())
       .attach("photo", photo.path)
       .expect(200)
 
@@ -68,8 +68,8 @@ describe("Upload photo", async () => {
 
     const res = await request(app)
       .post(`/api/users/${unknownUserId}/photo`)
-      .field("longitude", faker.address.longitude())
-      .field("latitude", faker.address.latitude())
+      .field("longitude", faker.location.longitude())
+      .field("latitude", faker.location.latitude())
       .attach("photo", photo.path)
       .expect(400)
 

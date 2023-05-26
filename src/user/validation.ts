@@ -11,11 +11,11 @@ const UserCreatedPayloadSchema: JSONSchemaType<UserCreatedPayload> = {
     id: { type: "string", format: "uuid" },
     confirmedAt: { type: "string", format: "date-time", nullable: true },
     dateOfBirth: { type: "string", format: "date-time", nullable: true },
-    email: { type: "string" },
+    email: { type: "string", format: "email" },
     firstName: { type: "string" },
     lastName: { type: "string" },
   },
-  required: [],
+  required: ["id", "email", "firstName", "lastName"],
   additionalProperties: false,
 }
 export const validateUserCreatedPayload = ajv.compile<UserCreatedPayload>(UserCreatedPayloadSchema)
