@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import compression from "compression"
 import express, { Application, json, urlencoded } from "express"
 import { Logger, createLogger, format, transports } from "winston"

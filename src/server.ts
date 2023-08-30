@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import createApp from "./app"
 import { getAppOptions } from "./env"
 

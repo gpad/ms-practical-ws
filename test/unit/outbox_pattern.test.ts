@@ -1,18 +1,31 @@
 import { Db } from "../../src/infra/db"
-import { emitAllEvents, saveEvents, startOutboxPatternMonitor } from "../../src/infra/outbox_pattern"
+import {
+  FromDbDomainEvent,
+  FromDbPublicDomainEvent,
+  emitAllEvents,
+  saveEvents,
+  startOutboxPatternMonitor,
+} from "../../src/infra/outbox_pattern"
 import { TestConsumer } from "../support/test_consumer"
 import sql, { join, RawValue } from "sql-template-tag"
 import { configureLogger, connectToDb } from "../../src/app"
 import { getTestOptions } from "../support/test_app"
 import { Rabbit } from "../../src/infra/rabbit"
-import { createFakePublicAggregateEvent, TestDomainEvent, TestPublicDomainEvent } from "../support/fake_data"
+import {
+  createFakePublicAggregateEvent,
+  TestDomainEvent,
+  TestPublicDomainEvent,
+  validateTestPublicDomainEventPayload,
+} from "../support/fake_data"
 import { DomainTrace } from "../../src/infra/domain_trace"
 import { EventId } from "../../src/infra/ids"
 import { expect } from "chai"
 import { AggregateVersion, DomainEvent, PublicDomainEvent } from "../../src/infra/aggregate"
 import { FakeEventBus } from "../support/fake_event_bus"
-import { RabbitServiceBus } from "../../src/infra/rabbit_service_bus"
+import { RabbitServiceBus, createEventBuilderFor } from "../../src/infra/rabbit_service_bus"
 import { eventually } from "../support/expect_util"
+import { EventResult } from "../../src/infra/event_bus"
+import { randomUUID } from "node:crypto"
 
 describe("outbox patter", () => {
   let db: Db
@@ -30,12 +43,11 @@ describe("outbox patter", () => {
   })
 
   afterEach(() => db.query(sql`TRUNCATE aggregate_events CASCADE`))
-
   afterEach(() => testConsumer.disconnect())
   afterEach(() => rabbit.disconnect())
   afterEach(() => serviceBus.stop())
 
-  it("publish event when rabbit comes back", async () => {
+  it("publish public event when rabbit comes back", async () => {
     const notPublicEvent1 = await addUnpublishedEvent(db, { public: false })
     const notPublicEvent2 = await addUnpublishedEvent(db, { public: false })
     const event = await addUnpublishedEvent(db)
@@ -129,6 +141,32 @@ describe("outbox patter", () => {
     )
     expect(sqlEvent).eql(toSql(enrichedEvents))
   })
+
+  it("FromDB events can impersonate other events", async () => {
+    const events: DomainEvent[] = []
+    serviceBus.register(TestDomainEvent.EventName, (e) => ack(events.push(e)))
+    serviceBus.register(TestPublicDomainEvent.EventName, (e) => ack(events.push(e)))
+    await serviceBus.start([createEventBuilderFor(validateTestPublicDomainEventPayload, TestPublicDomainEvent)], true)
+
+    await serviceBus.emit(
+      FromDbDomainEvent.createFrom(
+        createFakePublicAggregateEvent({ public: false, event_name: TestDomainEvent.EventName })
+      )
+    )
+    await serviceBus.emit(
+      FromDbPublicDomainEvent.createFrom(
+        createFakePublicAggregateEvent({
+          public: true,
+          event_name: TestPublicDomainEvent.EventName,
+          payload: { id: randomUUID() },
+        })
+      )
+    )
+
+    await eventually(() =>
+      expect(events.map((e) => e.eventName)).members([TestDomainEvent.EventName, TestPublicDomainEvent.EventName])
+    )
+  })
 })
 
 function addUnpublishedEvent(db: Db, opts: Partial<SqlSchema.aggregate_events> = {}) {
@@ -178,4 +216,8 @@ function toSql(list: Array<DomainEvent | PublicDomainEvent>): SqlSchema.aggregat
 function markAsPublished(db: Db, event: PublicDomainEvent) {
   const query = sql`UPDATE aggregate_events  SET published = TRUE where id = ${event.id.toValue()}`
   return db.query(query)
+}
+
+function ack(_: unknown): Promise<EventResult> {
+  return Promise.resolve({ ack: true })
 }
