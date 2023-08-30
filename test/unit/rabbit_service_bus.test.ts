@@ -12,7 +12,8 @@ import { connect } from "amqplib"
 import { wait } from "../../src/infra/wait"
 import { faker } from "@faker-js/faker"
 import { range } from "lodash"
-import { TestDomainEvent } from "../support/fake_data"
+import { TestDomainEvent, TestPublicDomainEvent, validateTestPublicDomainEventPayload } from "../support/fake_data"
+import { DomainEvent } from "../../src/infra/aggregate"
 
 describe("RabbitServiceBus", () => {
   const opts = getTestOptions()
@@ -287,8 +288,6 @@ describe("RabbitServiceBus", () => {
         expect(events.map((e) => e.eventName)).eql(Array(3).fill(TestDomainEvent.EventName))
       })
     })
-
-    it("are managed by outbox pattern")
 
     it("are executed asynchronous", async () => {
       const events: TestDomainEvent[] = []

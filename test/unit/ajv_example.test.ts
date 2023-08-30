@@ -30,6 +30,7 @@ describe("ajv example", () => {
     }
 
     const valid = validateExample(data)
+    // eslint-disable-next-line no-console
     if (!valid) console.log(validateExample.errors)
   })
 

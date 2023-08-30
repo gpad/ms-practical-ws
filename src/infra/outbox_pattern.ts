@@ -34,7 +34,10 @@ function getEventsToPublish(db: Db) {
 }
 
 async function publishEventsFromDB(candidates: SqlSchema.aggregate_events[], rabbit: EventBus, db: Db, logger: Logger) {
-  if (isEmpty(candidates)) return
+  if (isEmpty(candidates)) {
+    logger.debug("Nothing to publish")
+    return
+  }
   const candidatesIds = candidates.map((e) => e.id)
   logger.info(`Try to publish this events ${candidatesIds}`)
   try {

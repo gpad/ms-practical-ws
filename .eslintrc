@@ -51,6 +51,7 @@
     "no-unused-labels": "error",
     "no-var": "warn",
     "no-void": "error",
+    "no-console": "error",
     "prefer-const": "warn",
     "no-only-tests/no-only-tests": "error"
   },
